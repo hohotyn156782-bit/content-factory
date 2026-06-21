@@ -62,3 +62,5 @@ jobs:
 
       - name: Собрать и запостить
         run: python3 factory.py autopost "${{ steps.pick.outputs.niche }}"
+
+# (повторная индексация воркфлоу)
