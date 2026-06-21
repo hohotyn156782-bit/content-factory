@@ -147,8 +147,10 @@ def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None 
         accents = subtitles.accent_times(timed)            # моменты акцентных слов → punch-in зум фона
 
         _ensure_disk()                                       # тяжёлый шаг: рендер ffmpeg
+        # accents=None → БЕЗ punch-in зума фона (картинка не «прыгает» на жёлтом слове).
+        # Акцент теперь только в субтитрах: подсвечиваемое жёлтым слово само увеличивается (popin 122%).
         video = assemble.render(clips, full_audio, total, ass, out_dir / "video.mp4",
-                                music_path=_pick_music(), workdir=work, accents=accents)
+                                music_path=_pick_music(), workdir=work, accents=None)
         # рекламный баннер NightFox VPN поверх готового видео (изолированный пост-шаг,
         # не трогает рендер; env VPN_BANNER=0 отключает). До QA → QA проверит итог с баннером.
         try:
