@@ -168,13 +168,13 @@ def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None 
     if not qa_result["ok"]:
         core.log(f"QA не пройден: {qa_result['issues']}", level="warn", niche=niche_id, dir=out_dir.name)
 
-    # дисклеймер в описание/подпись: из ниши (вымысел/не-финсовет) — анти-клевета/демонетизация
-    disclaimer = niche.get("disclaimer", "")
-    if not disclaimer and (niche_id == "money_facts" or niche.get("category") == "money"):
+    # дисклеймер: ТОЛЬКО финансовый для «денег» (анти-демонетизация). AI-нота и «художественный
+    # вымысел» в подписи БОЛЬШЕ НЕ добавляются (решение владельца — выглядело спамом/палевом).
+    # На YouTube «синтетический контент» помечается галкой при загрузке, не текстом.
+    disclaimer = ""
+    if niche_id == "money_facts" or niche.get("category") == "money":
         disclaimer = "⚠️ Контент носит образовательный характер и не является финансовой рекомендацией."
-    ai_used = any(c.get("kind") in ("image", "gen") or "ai_" in str(c.get("source", ""))
-                  or c.get("source") in ("depthflow", "generated") for c in clips)
-    captions = _build_captions(sc, disclaimer=disclaimer, ai_used=ai_used, niche=niche)
+    captions = _build_captions(sc, disclaimer=disclaimer, ai_used=False, niche=niche)
     meta = {
         "niche": niche_id,
         "lang": sc["lang"],
