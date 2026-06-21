@@ -1,0 +1,40 @@
+# Артефакты / генерируемое (DATA_ROOT)
+output/
+cache/
+logs/
+publish/
+media_assets/
+music/
+assets/music/
+__pycache__/
+**/__pycache__/
+*.pyc
+_code_backup*/
+_qa/
+
+# Тяжёлые ассеты (в CI не нужны / регенерятся)
+# Piper .onnx ~120МБ → в CI движок edge-tts
+assets/voices/
+# VPN-луп регенерится из assets/nightfox_logo.jpg
+assets/banners/
+
+# Виртуальные окружения
+.venv/
+.venv-xtts/
+.venv-depth/
+
+# Панель: служебные файлы БД (саму panel.db КОММИТИМ — нужна для пер-нишевого постинга)
+panel/panel.db-wal
+panel/panel.db-shm
+panel/panel.db-journal
+
+# Секреты — НИКОГДА в гит
+secrets.env
+*token*.json
+client_secret*.json
+.env
+.git-credentials
+*.session
+
+.DS_Store
+*.log

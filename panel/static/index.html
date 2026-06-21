@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Content Factory · Панель</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">{P}</span><span class="brand-text">Content Factory</span></div>
+    <nav class="nav">
+      <button class="nav-item active" data-view="dashboard"><span class="ic">▦</span> Дашборд</button>
+      <button class="nav-item" data-view="plan"><span class="ic">▤</span> План дня</button>
+      <button class="nav-item" data-view="bundles"><span class="ic">⬡</span> Связки</button>
+      <button class="nav-item" data-view="queue"><span class="ic">≣</span> Очередь</button>
+      <button class="nav-item" data-view="analytics"><span class="ic">📊</span> Аналитика</button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="dot-live"></div> локально · :8765
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <h1 id="view-title">Дашборд</h1>
+      <div class="topbar-actions">
+        <button class="btn ghost" id="refresh-btn">↻ Обновить</button>
+        <button class="btn primary" id="new-bundle-btn">+ Новая связка</button>
+      </div>
+    </header>
+
+    <!-- ДАШБОРД -->
+    <section class="view" id="view-dashboard">
+      <div class="stat-grid" id="stat-grid"></div>
+      <h2 class="section-h">Последний контент</h2>
+      <div id="dash-recent" class="queue-list"></div>
+    </section>
+
+    <!-- ПЛАН ДНЯ -->
+    <section class="view hidden" id="view-plan">
+      <div class="plan-top">
+        <select id="plan-bundle" title="Связка"></select>
+        <input type="date" id="plan-date">
+        <button class="btn primary" id="plan-build">⚡ Построить план на день</button>
+        <button class="btn ghost" id="plan-genall">Сгенерировать всё</button>
+      </div>
+      <div id="plan-detail"></div>
+      <div id="plan-board"></div>
+    </section>
+
+    <!-- СВЯЗКИ -->
+    <section class="view hidden" id="view-bundles">
+      <div id="bundles-grid" class="bundles-grid"></div>
+    </section>
+
+    <!-- ОЧЕРЕДЬ -->
+    <section class="view hidden" id="view-queue">
+      <div class="filters">
+        <select id="queue-filter-bundle"><option value="">Все связки</option></select>
+        <select id="queue-filter-status">
+          <option value="">Все статусы</option>
+          <option value="generating">Генерируется</option>
+          <option value="queued">В очереди</option>
+          <option value="published">Опубликовано</option>
+          <option value="pending_manual">Ждёт ручной выкладки</option>
+          <option value="failed">Ошибка</option>
+        </select>
+      </div>
+      <div id="queue-list" class="queue-list"></div>
+    </section>
+
+    <!-- АНАЛИТИКА -->
+    <section class="view hidden" id="view-analytics">
+      <div class="stat-grid" id="an-stats"></div>
+      <h2 class="section-h">Эффективность по нишам</h2>
+      <p class="hint">Реальные просмотры опубликованного (YouTube + VK по нашим токенам). Вес = насколько ниша заходит → фабрика делает её чаще. Пусто, пока нет публикаций/токенов.</p>
+      <div id="an-table"></div>
+    </section>
+  </main>
+
+  <!-- МОДАЛКА: новая связка -->
+  <div class="modal-overlay hidden" id="modal-bundle">
+    <div class="modal">
+      <h3>Новая связка</h3>
+      <label>Название (единое для всех площадок)</label>
+      <input type="text" id="nb-name" placeholder="напр. Мозг наизнанку">
+      <label>Тема / ниша</label>
+      <select id="nb-niche"></select>
+      <p class="hint">Создадутся слоты площадок: Instagram + Threads (совместно) + VK + TikTok (вручную) + YouTube. Аккаунты подключишь после.</p>
+      <div class="modal-actions">
+        <button class="btn ghost" data-close>Отмена</button>
+        <button class="btn primary" id="nb-create">Создать связку</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- МОДАЛКА: настройка аккаунта -->
+  <div class="modal-overlay hidden" id="modal-account">
+    <div class="modal">
+      <h3 id="ma-title">Настройка площадки</h3>
+      <label>Отображаемое имя / @handle</label>
+      <input type="text" id="ma-name">
+      <label>Ссылка на профиль (для кросс-ссылок)</label>
+      <input type="text" id="ma-url" placeholder="https://...">
+      <div class="row-2">
+        <div><label>Токен — имя env-переменной</label><input type="text" id="ma-secret" placeholder="VK_ACC1_TOKEN"></div>
+        <div><label>ID площадки</label><input type="text" id="ma-ext" placeholder="owner_id / user_id"></div>
+      </div>
+      <div class="row-2">
+        <div>
+          <label>Подписчики</label>
+          <input type="number" id="ma-subs" min="0">
+        </div>
+        <div>
+          <label>Статус</label>
+          <select id="ma-status">
+            <option value="pending">Не подключён</option>
+            <option value="connected">Подключён</option>
+            <option value="manual">Только вручную</option>
+          </select>
+        </div>
+      </div>
+      <label>Тип контента на этой площадке</label>
+      <select id="ma-kind"><option value="video">🎬 Видео</option><option value="text">📝 Текст</option></select>
+      <label class="check"><input type="checkbox" id="ma-auto"> Авто-постинг</label>
+      <div class="modal-actions">
+        <button class="btn ghost" data-close>Отмена</button>
+        <button class="btn primary" id="ma-save">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

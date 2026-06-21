@@ -1,0 +1,27 @@
+# Ядро (обязательно)
+edge-tts>=7.2.8
+requests
+
+# YouTube-адаптер (нужен только для автопостинга на YouTube)
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+
+# Instagram-хостинг в Cloudflare R2 (опционально, только для Reels)
+boto3
+
+# Апгрейды (2026-06-18): субтитры/обложки/тренды/мониторинг
+Pillow              # авто-обложки (pipeline/thumbnail.py)
+yake                # подсветка смысловых ключевых слов в субтитрах (pipeline/subtitles.py)
+yt-dlp              # YouTube Most Replayed heatmap → сид хуков (pipeline/heatmap.py)
+trendspyg           # живой Google Trends (замена pytrends) — источник трендов (pipeline/parser.py)
+apprise             # резервный канал критичных алертов (ntfy/Discord) поверх Telegram (reporter.py)
+APScheduler         # планировщик с catch-up (опц., вместо голого cron)
+
+# ОПЦИОНАЛЬНО (ставит пользователь под свои аккаунты):
+#   kurigram tgcrypto   — постинг в Telegram-каналы (adapters/telegram.py); см. my.telegram.org
+#   modal               — serverless GPU видео-генерация Wan2.2 (video_gpu.py); ~$30/мес
+#   MOSS-TTS-Nano       — локальный TTS: ставится в свой venv через setup_moss.sh
+
+# ffmpeg/ffprobe — системные, ставятся отдельно (не через pip)

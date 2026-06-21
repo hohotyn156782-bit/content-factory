@@ -1,0 +1,64 @@
+name: autopilot
+
+# Сборка ролика ниши + автопостинг в VK + Instagram + Threads (panel.db, пер-нишево).
+# Сейчас включён ТОЛЬКО ручной запуск (workflow_dispatch) — для тест-прогона.
+# Крон 6×/день включится ПОСЛЕ успешного теста (раскомментировать блок schedule ниже).
+
+on:
+  workflow_dispatch:
+    inputs:
+      niche:
+        description: "ниша (пусто = авто-ротация по часу)"
+        required: false
+        default: ""
+  # schedule:
+  #   - cron: "0 6,9,12,15,18,21 * * *"   # UTC; +3ч = 09,12,15,18,21,24 МСК — 6 роликов/день
+
+concurrency:
+  group: autopilot
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GITHUB_TOKEN: ${{ secrets.MEDIA_PAT }}   # media_host пушит видео в cf-media → raw URL для IG/Threads
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Установить ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Python-зависимости
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Записать секреты
+        env:
+          SECRETS_ENV: ${{ secrets.SECRETS_ENV }}
+        run: |
+          mkdir -p ~/.config/content-factory
+          printf '%s' "$SECRETS_ENV" > ~/.config/content-factory/secrets.env
+
+      - name: Выбрать нишу
+        id: pick
+        run: |
+          IN="${{ github.event.inputs.niche }}"
+          if [ -n "$IN" ]; then
+            echo "niche=$IN" >> "$GITHUB_OUTPUT"
+          else
+            niches=(ai_lifehacks mind_facts history_facts talking_objects business_stories mystic_stories soviet_things psy_stories)
+            idx=$(( ( $(date -u +%j) * 24 + $(date -u +%H) ) % ${#niches[@]} ))
+            echo "niche=${niches[$idx]}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Ниша: $(cat $GITHUB_OUTPUT | grep niche=)"
+
+      - name: Собрать и запостить
+        run: python3 factory.py autopost "${{ steps.pick.outputs.niche }}"

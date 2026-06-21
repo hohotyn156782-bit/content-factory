@@ -1,0 +1,313 @@
+"""Оркестратор: один вызов = один готовый ролик с метаданными под площадки.
+
+build_video(niche_id, topic) → папка output/<стамп-ниша-слаг>/ с:
+  video.mp4         — готовый вертикальный ролик 1080x1920
+  subs.ass          — субтитры (вожжены в видео, файл для правок)
+  meta.json         — метаданные (title/description/caption/hashtags/platforms/duration)
+  POST.txt          — человекочитаемый набор подписей под каждую площадку
+  script.json       — исходный сценарий
+"""
+import json
+import pathlib
+
+import sys
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+import core  # noqa: E402
+from pipeline import script as scriptmod, voice, broll, subtitles, assemble  # noqa: E402
+
+
+def _ensure_disk() -> None:
+    """Самовосстановление диска перед тяжёлыми шагами (скачивание сток-клипов / рендер ffmpeg).
+    Если места мало — агрессивно чистим кэш/output/media и проверяем снова; если и после этого
+    мало — пробрасываем понятную ошибку (молчаливый ffmpeg-крах при полном диске хуже)."""
+    try:
+        core.check_disk()
+    except RuntimeError:
+        core.cleanup_cache(2)
+        core.cleanup_outputs(7)
+        core.cleanup_media(21)
+        core.check_disk()        # всё ещё мало → пробрасываем
+
+
+def _pick_music() -> str | None:
+    if not core.MUSIC_DIR.exists():
+        return None
+    tracks = sorted([p for p in core.MUSIC_DIR.iterdir()
+                     if p.suffix.lower() in (".mp3", ".m4a", ".wav", ".aac", ".ogg")])
+    return str(tracks[0]) if tracks else None
+
+
+def _build_captions(sc: dict, disclaimer: str = "", ai_used: bool = False,
+                    niche: dict | None = None) -> dict:
+    """Подписи под площадки по ресёрчу алгоритмов 2026:
+    • YouTube: ЧИСТЫЙ заголовок (ключевики важнее); хэштеги — в ОПИСАНИИ, #Shorts ПЕРВЫМ, 3-5 шт
+      (>15 → YouTube игнорит ВСЕ). TikTok/IG — шире (до 8). AI-лейбл при AI-визуале (TikTok-комплаенс).
+    • YouTube-описание front-load'ит ключевую фразу ПЕРВОЙ строкой (B15) — питает search/suggested
+      как второй канал дискавери помимо ленты. Чисто строковая сборка, без LLM.
+    """
+    raw = [t for t in sc.get("hashtags", []) if t]
+    # #Shorts всегда первым, без дублей
+    def _ordered(first: str, tags: list[str], n: int) -> str:
+        seen, out = set(), [first]
+        seen.add(first.lower())
+        for t in tags:
+            tl = t.lower()
+            if tl not in seen:
+                seen.add(tl); out.append(t)
+            if len(out) >= n:
+                break
+        return " ".join(out)
+
+    topic = (sc.get("topic", "") or "").strip()
+    # #14: тема-специфичный тег #КамелКейс из topic/первого ключевика (1-2 значимых слова) —
+    #      вставляем СРАЗУ после #Shorts, перед нишевыми. Дедуп делает _ordered.
+    def _topic_tag(text: str) -> str | None:
+        import re as _re
+        # КИРИЛЛИЦУ сохраняем — RU-аудитория ищет по кириллическим тегам, не транслиту
+        _stop = {"как", "что", "это", "для", "или", "почему", "the", "and", "you", "how", "why"}
+        words = [w for w in _re.findall(r"\w+", (text or "").lower(), _re.UNICODE)
+                 if len(w) > 2 and w not in _stop and not w.isdigit()][:2]
+        if not words:
+            return None
+        return "#" + "".join(w.capitalize() for w in words)      # #КамелКейс (кириллица/латиница)
+    topic_tags = [t for t in (_topic_tag(topic),) if t]
+
+    yt_tags = _ordered("#Shorts", topic_tags + raw, 5)
+    social_tags = _ordered("#shorts", topic_tags + raw, 8)   # TikTok/IG переваривают больше
+    # заголовок — чистый, без хвостовых #shorts/#short (ресёрч: ключевики на первом плане)
+    import re as _re
+    yt_title = _re.sub(r"\s*#\w+\s*$", "", sc.get("title", "").strip()).strip()[:60]
+
+    ai_note = ("Создано с помощью ИИ. " if ai_used else "")
+    pre = (ai_note + disclaimer + "\n\n") if (ai_note or disclaimer) else ""
+    desc = sc.get("description", "").strip()
+
+    # B15: front-load ключевую фразу ПЕРВОЙ строкой YouTube-описания (search/suggested-дискавери).
+    # Приоритет: hook → topic + первый keyword ниши → topic. Дубль desc'а не плодим.
+    # #13: поля niche.keywords НЕТ ни в одной нише → берём живой дериват из broll_hint/hashtags/topic.
+    nd = niche or {}
+    first_kw = (nd.get("broll_hint", "") or "").split(",")[0].strip() \
+        or next((t.lstrip("#") for t in (nd.get("hashtags") or [])), "") \
+        or topic
+    key_phrase = (sc.get("hook", "") or "").strip()
+    if not key_phrase:
+        key_phrase = f"{topic} {first_kw}".strip() if first_kw else topic
+    key_phrase = " ".join(key_phrase.split())[:150]      # одна строка, разумная длина
+    lead = (key_phrase + "\n\n") if (key_phrase and key_phrase != desc) else ""
+
+    yt_desc = f"{pre}{lead}{desc}\n\n{yt_tags}".strip()
+    if lead:
+        core.log(f"YouTube-описание: ключевик front-load — «{key_phrase}»", level="info")
+    social = f"{pre}{sc.get('caption', '').strip()}\n\n{social_tags}".strip()
+    return {
+        "youtube": {"title": yt_title, "description": yt_desc},
+        "tiktok": {"caption": social[:2100]},
+        "instagram": {"caption": social[:2100]},
+        "vk": {"caption": f"{pre}{sc.get('caption', '').strip()}\n\n{_ordered('#клипы', raw, 5)}".strip()[:2000]},
+    }
+
+
+def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None = None) -> dict:
+    core.load_local_secrets()
+    core.ensure_dirs()
+    core.check_disk()                            # анти-«молчаливый ffmpeg-крах» при полном диске
+    niche = core.get_niche(niche_id)
+    if broll_mode is None:                       # режим b-roll из ниши (story → ai_images персонажа)
+        broll_mode = niche.get("broll_mode", "stock")
+
+    # антиповтор: даём генератору КРОСС-НИШЕВЫЙ список недавних тем (не только этой ниши)
+    from pipeline import topics_db
+    topics_db.init()
+    avoid = topics_db.recent_titles(days=45) or core.recent_topics(niche_id)
+    sc = scriptmod.generate(niche, topic=topic, avoid=avoid)
+    chunks = scriptmod.to_chunks(sc)
+    if not chunks:
+        raise RuntimeError("Сценарий пустой — Groq не вернул сегментов")
+
+    out_dir = core.OUTPUT_DIR / f"{core.stamp()}-{niche_id}-{core.slugify(sc['topic'])}"
+    work = out_dir / "_work"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    (out_dir / "script.json").write_text(json.dumps(sc, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # Тяжёлая часть (озвучка→сток/ИИ→субтитры→рендер→QA) под защитой: при сбое логируем
+    # и убираем недособранную папку, чтобы не копился мусор (анти-«зависший» каталог).
+    import shutil
+    try:
+        timed, full_audio, total = voice.synthesize(chunks, sc["voice"], sc["rate"], work,
+                                                    engine=niche.get("engine", "edge"), lang=sc["lang"],
+                                                    speed=sc.get("speed", 1.0))
+        _ensure_disk()                                       # тяжёлый шаг: скачивание сток-клипов
+        clips = broll.fetch_for(timed, niche, work, mode=broll_mode, character=sc.get("character", ""))
+
+        palette = niche.get("palette", [["0a0a14", "3ddc97"]])
+        accent = palette[0][1] if palette and len(palette[0]) > 1 else "3ddc97"
+        sub_mode = niche.get("subtitle_mode", "popin")     # 'popin' (база) | 'karaoke' (\kf, A/B по нишам)
+        ass = subtitles.build_ass(timed, out_dir / "subs.ass", accent=accent, mode=sub_mode)
+        accents = subtitles.accent_times(timed)            # моменты акцентных слов → punch-in зум фона
+
+        _ensure_disk()                                       # тяжёлый шаг: рендер ffmpeg
+        video = assemble.render(clips, full_audio, total, ass, out_dir / "video.mp4",
+                                music_path=_pick_music(), workdir=work, accents=accents)
+        # рекламный баннер NightFox VPN поверх готового видео (изолированный пост-шаг,
+        # не трогает рендер; env VPN_BANNER=0 отключает). До QA → QA проверит итог с баннером.
+        try:
+            from pipeline import banner
+            banner.overlay(video, niche_id=niche_id)   # личный бренд (personal_brand) баннер не получает
+        except Exception as e:  # noqa: BLE001
+            core.log_error("banner", e, niche=niche_id)
+        duration = core.media_duration(video)
+
+        # QA-тестер: тех-косяки (рассинхрон/фриз/разрешение) + AI-зрение (аномалии людей/текста)
+        from pipeline import qa as qamod
+        qa_result = qamod.check(str(video), workdir=out_dir / "_qa")
+    except Exception as e:  # noqa: BLE001
+        core.log_error("build._build_once", e, niche=niche_id, dir=out_dir.name)
+        shutil.rmtree(out_dir, ignore_errors=True)
+        raise
+    if not qa_result["ok"]:
+        core.log(f"QA не пройден: {qa_result['issues']}", level="warn", niche=niche_id, dir=out_dir.name)
+
+    # дисклеймер в описание/подпись: из ниши (вымысел/не-финсовет) — анти-клевета/демонетизация
+    disclaimer = niche.get("disclaimer", "")
+    if not disclaimer and (niche_id == "money_facts" or niche.get("category") == "money"):
+        disclaimer = "⚠️ Контент носит образовательный характер и не является финансовой рекомендацией."
+    ai_used = any(c.get("kind") in ("image", "gen") or "ai_" in str(c.get("source", ""))
+                  or c.get("source") in ("depthflow", "generated") for c in clips)
+    captions = _build_captions(sc, disclaimer=disclaimer, ai_used=ai_used, niche=niche)
+    meta = {
+        "niche": niche_id,
+        "lang": sc["lang"],
+        "topic": sc["topic"],
+        "duration": round(duration, 2),
+        "video": str(video),
+        "platforms": niche.get("platforms", []),
+        "hashtags": sc.get("hashtags", []),
+        "captions": captions,
+        "stock_used": sum(1 for c in clips if c["kind"] == "stock"),
+        "ai_images": sum(1 for c in clips if c["kind"] == "image"),
+        "generated_bg": sum(1 for c in clips if c["kind"] == "gen"),
+        "credits": [{"source": c["source"], "url": c.get("source_url", ""), "query": c.get("query", "")}
+                    for c in clips if c["kind"] == "stock"],
+        "created": core._now().isoformat(),
+        "posted": {},
+        "qa": qa_result,
+        "virality": sc.get("virality", {}),
+        "hook": sc.get("hook", ""),                      # для обложки (короткий хук-текст)
+        "hook_variants": sc.get("hook_variants", []),
+        "title_variants": sc.get("title_variants", []),
+    }
+
+    # авто-обложка (кадр ролика + крупный заголовок) — для превью/YouTube. Не критично.
+    try:
+        from pipeline import thumbnail
+        thumb = thumbnail.make_for_meta(str(video), meta, out_dir / "thumb.jpg")
+        if thumb:
+            meta["thumbnail"] = str(thumb)
+    except Exception as e:  # noqa: BLE001
+        core.log_error("thumbnail", e)
+
+    (out_dir / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # CREDITS.txt — доказательство лицензий для возможных споров по Content ID
+    if meta["credits"]:
+        lines = ["Источники B-roll (лицензии Pexels/Pixabay — коммерческое использование без обязательной атрибуции):", ""]
+        for c in meta["credits"]:
+            lines.append(f"- {c['source']}: {c['url']}  (запрос: {c['query']})")
+        (out_dir / "CREDITS.txt").write_text("\n".join(lines), encoding="utf-8")
+
+    post_txt = [
+        f"# {sc['topic']}  ({duration:.1f}s · {niche_id})", "",
+        "── YouTube Shorts ──", captions["youtube"]["title"], "", captions["youtube"]["description"], "",
+        "── TikTok ──", captions["tiktok"]["caption"], "",
+        "── Instagram Reels ──", captions["instagram"]["caption"], "",
+        "── VK ──", captions["vk"]["caption"], "",
+    ]
+    (out_dir / "POST.txt").write_text("\n".join(post_txt), encoding="utf-8")
+
+    core.append_history({
+        "niche": niche_id, "topic": sc["topic"], "lang": sc["lang"],
+        "duration": round(duration, 2), "dir": str(out_dir), "status": "built",
+    })
+
+    # материалы (ИИ-картинки/использованные кадры) → media_assets/<slug>/ (сохраняем для повторного монтажа)
+    import shutil
+    slug = out_dir.name
+    media_sub = core.MEDIA_DIR / slug
+    media_sub.mkdir(parents=True, exist_ok=True)
+    for img in work.glob("img_*.png"):                       # ИИ-картинки персонажа/сцен
+        shutil.copy2(img, media_sub / img.name)
+    # копия сценария рядом с материалами — что озвучивали под эти кадры
+    shutil.copy2(out_dir / "script.json", media_sub / "script.json")
+
+    # готовое видео для публикации (только если QA прошёл) → publish/
+    publish_path = ""
+    if qa_result["ok"]:
+        publish_path = str(core.PUBLISH_DIR / f"{slug}.mp4")
+        shutil.copy2(video, publish_path)
+
+    # чистим промежуточные файлы (клипы/склейки/озвучка ~8 МБ на ролик) — оставляем только результат
+    shutil.rmtree(work, ignore_errors=True)
+    shutil.rmtree(out_dir / "_qa", ignore_errors=True)
+
+    return {"dir": str(out_dir), "video": str(video), "publish": publish_path,
+            "duration": duration, "meta": meta, "script": sc, "qa": qa_result}
+
+
+def build_video(niche_id: str, topic: str | None = None, broll_mode: str | None = None,
+                max_attempts: int = 2) -> dict:
+    """Собрать ролик с авто-регенерацией: если QA не прошёл — пересобрать (до max_attempts).
+    Неудачные попытки удаляются; на последней — отдаём как есть (qa.ok=False, не публикуется)."""
+    import shutil
+    core.cleanup_cache(max_age_days=7)          # подчищаем старый скачанный сток (анти-рост диска)
+    core.cleanup_outputs(max_age_days=21)        # старые папки роликов/публикаций (анти-рост диска)
+    core.cleanup_media(max_age_days=45)          # старые материалы для повторного монтажа (анти-рост диска)
+    last = None
+    for attempt in range(max_attempts):
+        res = _build_once(niche_id, topic=topic, broll_mode=broll_mode)
+        if res["qa"]["ok"]:
+            # КОММИТ темы: переводим зарезервированную тему в status='built' (антиповтор в будущем).
+            # Коммитим ТОЛЬКО при успехе сборки (раньше record() звался безусловно).
+            try:
+                from pipeline import topics_db
+                m = res["meta"]
+                topics_db.commit_topic(niche_id, m["topic"], lang=m.get("lang", "ru"),
+                                       dir=pathlib.Path(res["dir"]).name,
+                                       hook=res.get("script", {}).get("hook", ""),
+                                       virality=(m.get("virality", {}) or {}).get("score", 0))
+            except Exception as e:  # noqa: BLE001
+                core.log_error("topics_db.commit_topic", e)
+            core.log(f"Готов ролик: {res['meta']['topic']}", niche=niche_id,
+                     virality=res["meta"].get("virality", {}).get("score"),
+                     attempt=attempt + 1, dir=pathlib.Path(res["dir"]).name)
+            return res
+        if attempt < max_attempts - 1:
+            shutil.rmtree(res["dir"], ignore_errors=True)   # выбрасываем брак, пробуем ещё раз
+            # освобождаем тему этой бракованной попытки — иначе ретрай с той же темой
+            # столкнётся со СВОИМ же резервом (ложный дубль) и не сможет её взять
+            try:
+                from pipeline import topics_db
+                topics_db.release_topic(niche_id, res.get("meta", {}).get("topic", "")
+                                        or res.get("script", {}).get("topic", ""))
+            except Exception as e:  # noqa: BLE001
+                core.log_error("topics_db.release_topic", e)
+        else:
+            last = res                                       # последняя — отдаём с пометкой
+            core.log(f"Ролик отдан с непройденным QA: {res['meta']['topic']}", level="warn",
+                     niche=niche_id, issues=res["qa"]["issues"], dir=pathlib.Path(res["dir"]).name)
+    # окончательный брак (все попытки исчерпаны, qa.ok=False) → освобождаем зарезервированную тему
+    if last is not None and not last["qa"]["ok"]:
+        try:
+            from pipeline import topics_db
+            topics_db.release_topic(niche_id, last.get("meta", {}).get("topic", "")
+                                    or last.get("script", {}).get("topic", ""))
+        except Exception as e:  # noqa: BLE001
+            core.log_error("topics_db.release_topic", e)
+    return last
+
+
+if __name__ == "__main__":
+    nid = sys.argv[1] if len(sys.argv) > 1 else "ai_lifehacks"
+    topic = sys.argv[2] if len(sys.argv) > 2 else None
+    res = build_video(nid, topic)
+    print(f"\n✅ Готово: {res['video']}\n   {res['duration']:.1f}s · {res['dir']}")
