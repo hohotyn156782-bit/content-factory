@@ -16,8 +16,9 @@ on:
         description: "ниша (пусто = авто-ротация по часу)"
         required: false
         default: ""
-  schedule:
-    - cron: "0 9,18 * * *"   # UTC; +3ч = 12:00 и 21:00 МСК — СТАРТ: 2 ролика/день
+  # КРОН ОТКЛЮЧЁН (по просьбе) — идёт пересборка архитектуры (авто-площадки + TG-очередь для YT/TikTok).
+  # schedule:
+  #   - cron: "0 9,18 * * *"   # UTC; +3ч = 12:00 и 21:00 МСК
 
 concurrency:
   group: autopilot
