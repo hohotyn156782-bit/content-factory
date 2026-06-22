@@ -150,7 +150,8 @@ def _build_captions(sc: dict, disclaimer: str = "", ai_used: bool = False,
     }
 
 
-def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None = None) -> dict:
+def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None = None,
+                serial: dict | None = None) -> dict:
     core.load_local_secrets()
     core.ensure_dirs()
     core.check_disk()                            # анти-«молчаливый ffmpeg-крах» при полном диске
@@ -162,7 +163,9 @@ def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None 
     from pipeline import topics_db
     topics_db.init()
     avoid = topics_db.recent_titles(days=45) or core.recent_topics(niche_id)
-    sc = scriptmod.generate(niche, topic=topic, avoid=avoid)
+    sc = scriptmod.generate(niche, topic=topic, avoid=avoid, serial=serial)
+    if serial:
+        sc["_serial_part"] = serial.get("part")     # → _story_caption добавит «продолжение завтра»
     chunks = scriptmod.to_chunks(sc)
     if not chunks:
         raise RuntimeError("Сценарий пустой — Groq не вернул сегментов")
@@ -303,16 +306,17 @@ def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None 
 
 
 def build_video(niche_id: str, topic: str | None = None, broll_mode: str | None = None,
-                max_attempts: int = 2) -> dict:
+                max_attempts: int = 2, serial: dict | None = None) -> dict:
     """Собрать ролик с авто-регенерацией: если QA не прошёл — пересобрать (до max_attempts).
-    Неудачные попытки удаляются; на последней — отдаём как есть (qa.ok=False, не публикуется)."""
+    Неудачные попытки удаляются; на последней — отдаём как есть (qa.ok=False, не публикуется).
+    serial — серийный эпизод (часть 1/2), пробрасывается в генерацию сценария."""
     import shutil
     core.cleanup_cache(max_age_days=7)          # подчищаем старый скачанный сток (анти-рост диска)
     core.cleanup_outputs(max_age_days=21)        # старые папки роликов/публикаций (анти-рост диска)
     core.cleanup_media(max_age_days=45)          # старые материалы для повторного монтажа (анти-рост диска)
     last = None
     for attempt in range(max_attempts):
-        res = _build_once(niche_id, topic=topic, broll_mode=broll_mode)
+        res = _build_once(niche_id, topic=topic, broll_mode=broll_mode, serial=serial)
         if res["qa"]["ok"]:
             # КОММИТ темы: переводим зарезервированную тему в status='built' (антиповтор в будущем).
             # Коммитим ТОЛЬКО при успехе сборки (раньше record() звался безусловно).

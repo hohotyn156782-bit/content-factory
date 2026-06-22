@@ -213,11 +213,34 @@ def cmd_autopost(args):
         print(f"⚠️ у ниши «{niche_id}» нет connected-аккаунтов vk/instagram/threads — нечего постить")
         return
 
-    res = builder.build_video(niche_id, topic=args.topic)
+    # Фаза 4: серийный контент — МАКС 1 серийный эпизод/день/ниша (часть1 → завтра часть2 → новый сериал)
+    from pipeline import serials
+    today = core.today_str()
+    ser = serials.plan_episode(niche_id, today)
+    topic = args.topic or (ser.get("topic") if (ser and ser.get("part") == 2) else None)
+    print(f"📺 серийный план «{niche_id}»: {ser}")
+    res = builder.build_video(niche_id, topic=topic, serial=ser)
     out_dir = pathlib.Path(res["dir"])
     meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
     video = meta["video"]
     print(f"🎬 собрано: {out_dir}")
+    # QA-гейт: не публикуем брак
+    qa = res.get("qa") or {}
+    if qa and not qa.get("ok", True):
+        print(f"⛔ QA не пройден — НЕ публикую: {qa.get('issues')}")
+        return
+    # зафиксировать серийное состояние ПОСЛЕ успешной сборки (advance сериала)
+    if ser:
+        try:
+            sc_b = json.loads((out_dir / "script.json").read_text(encoding="utf-8"))
+            if ser["part"] == 1:
+                serials.record(niche_id, 1, today, topic=sc_b.get("topic", ""),
+                               premise=f"{sc_b.get('topic', '')} — {sc_b.get('hook', '')}")
+            else:
+                serials.record(niche_id, 2, today)
+            print(f"📺 серия зафиксирована: part {ser['part']}")
+        except Exception as e:  # noqa: BLE001
+            core.log_error("autopost.serial_record", e)
     cap = ((meta.get("captions", {}).get("instagram", {}) or {}).get("caption")
            or (meta.get("captions", {}).get("vk", {}) or {}).get("caption") or meta.get("topic", ""))
 

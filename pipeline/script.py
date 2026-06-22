@@ -254,8 +254,10 @@ def _trim_to_words(sc: dict, max_words: int = 80, min_segments: int = 4) -> dict
     return sc
 
 
-def generate(niche: dict, topic: str | None = None, avoid: list[str] | None = None) -> dict:
-    """Сгенерировать сценарий под нишу. Возвращает нормализованный dict."""
+def generate(niche: dict, topic: str | None = None, avoid: list[str] | None = None,
+             serial: dict | None = None) -> dict:
+    """Сгенерировать сценарий под нишу. serial={'part':1} → завязка+клиффхэнгер (часть 1 из 2);
+    serial={'part':2,'premise':...} → продолжение и развязка. Возвращает нормализованный dict."""
     import core as _core
     if topic:                                  # анти-prompt-injection: тема приходит из любых источников
         topic = _core.sanitize_external(topic)
@@ -289,6 +291,21 @@ def generate(niche: dict, topic: str | None = None, avoid: list[str] | None = No
     if topic:
         topic_line = (f"\nКОНКРЕТНАЯ ТЕМА этого видео: {topic}" if is_ru
                       else f"\nSPECIFIC TOPIC for this video: {topic}")
+
+    # СЕРИЙНЫЙ контент: часть 1 (завязка+клиффхэнгер) / часть 2 (продолжение+развязка по premise).
+    serial_line = ""
+    if serial and serial.get("part") == 1:
+        serial_line = ("\n📺 Это ЧАСТЬ 1 двухчастного сериала: расскажи ПЕРВУЮ половину истории — "
+                       "завязка и нагнетание до пика интриги, но ГЛАВНУЮ разгадку/развязку НЕ раскрывай "
+                       "(она будет во 2-й части). Заверши на сильной недосказанности-крючке." if is_ru else
+                       "\n📺 PART 1 of a 2-part serial: tell the FIRST half — setup and rising tension to a "
+                       "peak, but DO NOT reveal the resolution (it comes in part 2). End on a cliffhanger.")
+    elif serial and serial.get("part") == 2:
+        prem = _core.sanitize_external(str(serial.get("premise", "")))[:300]
+        serial_line = (f"\n📺 Это ЧАСТЬ 2 (финал) сериала. В 1-й части было: «{prem}». Продолжи ТУ ЖЕ "
+                       "историю, кратко напомни контекст в хуке и доведи до развязки/разгадки." if is_ru else
+                       f"\n📺 PART 2 (finale). Part 1 was: '{prem}'. Continue the SAME story, briefly recap "
+                       "in the hook, and resolve it.")
 
     # СИД ИЗ HEATMAP: пик удержания у успешного конкурента (yt-dlp Most Replayed) как затравка приёма.
     # Опционально (CF_HEATMAP=0 выключает), сетевой вызов — мягкий, не роняет генерацию.
@@ -388,9 +405,9 @@ def generate(niche: dict, topic: str | None = None, avoid: list[str] | None = No
         f"{anti}\n\n{avoid}\n\n"
         f"Верни СТРОГО валидный JSON по схеме (без markdown, без комментариев):\n{schema_hint}"
     )
-    user = (f"Сгенерируй один сценарий короткого видео для ниши «{niche.get('title')}».{topic_line}{seed_line}{avoid_line}"
+    user = (f"Сгенерируй один сценарий короткого видео для ниши «{niche.get('title')}».{topic_line}{serial_line}{seed_line}{avoid_line}"
             if is_ru else
-            f"Generate one short-video script for the niche '{niche.get('title')}'.{topic_line}{seed_line}{avoid_line}")
+            f"Generate one short-video script for the niche '{niche.get('title')}'.{topic_line}{serial_line}{seed_line}{avoid_line}")
 
     # Генерация с ДВОЙНЫМ ГЕЙТОМ + САМО-УЛУЧШЕНИЕМ: validate() + Virality Score (LLM-судья).
     # Цикл: сгенерь → оцени → если ниже планки, скорми судейский «fix» и слабую ось обратно

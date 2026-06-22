@@ -68,4 +68,14 @@ jobs:
       - name: Собрать и запостить
         run: python3 factory.py autopost "${{ steps.pick.outputs.niche }}"
 
-# (повторная индексация воркфлоу)
+      - name: Сохранить состояние сериалов (CI эфемерный → коммит-бэк)
+        if: always()
+        run: |
+          git config user.email "autopilot@content-factory"
+          git config user.name "cf-autopilot"
+          if [ -n "$(git status --porcelain state/ 2>/dev/null)" ]; then
+            git add state/
+            git pull --rebase --autostash origin master || true
+            git commit -m "state: серийное состояние [skip ci]" || true
+            git push origin master || true
+          fi
