@@ -255,9 +255,10 @@ def _trim_to_words(sc: dict, max_words: int = 80, min_segments: int = 4) -> dict
 
 
 def generate(niche: dict, topic: str | None = None, avoid: list[str] | None = None,
-             serial: dict | None = None) -> dict:
+             serial: dict | None = None, platform_hint: str = "") -> dict:
     """Сгенерировать сценарий под нишу. serial={'part':1} → завязка+клиффхэнгер (часть 1 из 2);
-    serial={'part':2,'premise':...} → продолжение и развязка. Возвращает нормализованный dict."""
+    serial={'part':2,'premise':...} → продолжение. platform_hint — стиль/формат под площадку
+    (YouTube/TikTok/Reels-VK). Возвращает нормализованный dict."""
     import core as _core
     if topic:                                  # анти-prompt-injection: тема приходит из любых источников
         topic = _core.sanitize_external(topic)
@@ -405,9 +406,10 @@ def generate(niche: dict, topic: str | None = None, avoid: list[str] | None = No
         f"{anti}\n\n{avoid}\n\n"
         f"Верни СТРОГО валидный JSON по схеме (без markdown, без комментариев):\n{schema_hint}"
     )
-    user = (f"Сгенерируй один сценарий короткого видео для ниши «{niche.get('title')}».{topic_line}{serial_line}{seed_line}{avoid_line}"
+    platform_line = (("\n🎯 " + platform_hint) if platform_hint else "")
+    user = (f"Сгенерируй один сценарий короткого видео для ниши «{niche.get('title')}».{topic_line}{platform_line}{serial_line}{seed_line}{avoid_line}"
             if is_ru else
-            f"Generate one short-video script for the niche '{niche.get('title')}'.{topic_line}{serial_line}{seed_line}{avoid_line}")
+            f"Generate one short-video script for the niche '{niche.get('title')}'.{topic_line}{platform_line}{serial_line}{seed_line}{avoid_line}")
 
     # Генерация с ДВОЙНЫМ ГЕЙТОМ + САМО-УЛУЧШЕНИЕМ: validate() + Virality Score (LLM-судья).
     # Цикл: сгенерь → оцени → если ниже планки, скорми судейский «fix» и слабую ось обратно

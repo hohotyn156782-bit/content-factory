@@ -38,6 +38,17 @@ def _pick_music() -> str | None:
     return str(tracks[0]) if tracks else None
 
 
+# Спеки формата под площадку (v2: раздельные ролики). max_words ≈ длина озвучки (~2.3 слова/сек).
+PLATFORM_SPECS = {
+    "youtube": {"max_words": 95, "hint": "Формат YouTube Shorts: чуть длиннее и информативнее, "
+                "ценность + интрига, сильный образовательный угол, держи до конца."},
+    "tiktok":  {"max_words": 52, "hint": "Формат TikTok: коротко и динамично, мощный хук в первую "
+                "секунду, трендовая разговорная подача, без лишних слов."},
+    "ig_vk":   {"max_words": 80, "hint": "Формат Reels/VK Клипы: эстетично и эмоционально, под "
+                "русскую аудиторию, плавный ритм, цепляющая концовка."},
+}
+
+
 def _story_caption(sc: dict, niche: dict | None = None, serial_part: int | None = None) -> str:
     """LLM-подпись для соцсетей (VK/IG/Threads): цепляющий крючок + интрига + вовлечение, по нише,
     без AI-воды. serial_part=1 → концовка «продолжение завтра»; =2 → «это 2-я часть».
@@ -151,7 +162,7 @@ def _build_captions(sc: dict, disclaimer: str = "", ai_used: bool = False,
 
 
 def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None = None,
-                serial: dict | None = None) -> dict:
+                serial: dict | None = None, platform: str | None = None) -> dict:
     core.load_local_secrets()
     core.ensure_dirs()
     core.check_disk()                            # анти-«молчаливый ffmpeg-крах» при полном диске
@@ -163,9 +174,13 @@ def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None 
     from pipeline import topics_db
     topics_db.init()
     avoid = topics_db.recent_titles(days=45) or core.recent_topics(niche_id)
-    sc = scriptmod.generate(niche, topic=topic, avoid=avoid, serial=serial)
+    spec = PLATFORM_SPECS.get(platform or "", {})
+    sc = scriptmod.generate(niche, topic=topic, avoid=avoid, serial=serial,
+                            platform_hint=spec.get("hint", ""))
     if serial:
         sc["_serial_part"] = serial.get("part")     # → _story_caption добавит «продолжение завтра»
+    if platform:
+        sc["_platform"] = platform
     chunks = scriptmod.to_chunks(sc)
     if not chunks:
         raise RuntimeError("Сценарий пустой — Groq не вернул сегментов")
@@ -306,17 +321,17 @@ def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None 
 
 
 def build_video(niche_id: str, topic: str | None = None, broll_mode: str | None = None,
-                max_attempts: int = 2, serial: dict | None = None) -> dict:
+                max_attempts: int = 2, serial: dict | None = None, platform: str | None = None) -> dict:
     """Собрать ролик с авто-регенерацией: если QA не прошёл — пересобрать (до max_attempts).
     Неудачные попытки удаляются; на последней — отдаём как есть (qa.ok=False, не публикуется).
-    serial — серийный эпизод (часть 1/2), пробрасывается в генерацию сценария."""
+    serial — серийный эпизод (часть 1/2); platform — формат/стиль под площадку (youtube/tiktok/ig_vk)."""
     import shutil
     core.cleanup_cache(max_age_days=7)          # подчищаем старый скачанный сток (анти-рост диска)
     core.cleanup_outputs(max_age_days=21)        # старые папки роликов/публикаций (анти-рост диска)
     core.cleanup_media(max_age_days=45)          # старые материалы для повторного монтажа (анти-рост диска)
     last = None
     for attempt in range(max_attempts):
-        res = _build_once(niche_id, topic=topic, broll_mode=broll_mode, serial=serial)
+        res = _build_once(niche_id, topic=topic, broll_mode=broll_mode, serial=serial, platform=platform)
         if res["qa"]["ok"]:
             # КОММИТ темы: переводим зарезервированную тему в status='built' (антиповтор в будущем).
             # Коммитим ТОЛЬКО при успехе сборки (раньше record() звался безусловно).
