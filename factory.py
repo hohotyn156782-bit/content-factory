@@ -277,6 +277,13 @@ def cmd_autopost(args):
         pass
 
 
+def cmd_v2(args):
+    """v2-автопостинг по выходу: ig_vk|text|youtube|tiktok (крон разносит по дню)."""
+    core.load_local_secrets()
+    from pipeline import autopilot
+    autopilot.run(args.output, args.niche)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Content Factory")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -294,6 +301,8 @@ def main():
     apo = sub.add_parser("autopost"); apo.add_argument("niche")
     apo.add_argument("-t", "--topic", default=None); apo.add_argument("--dry", action="store_true")
     apo.set_defaults(func=cmd_autopost)
+    v2 = sub.add_parser("v2"); v2.add_argument("output")   # ig_vk|text|youtube|tiktok
+    v2.add_argument("niche", nargs="?", default=None); v2.set_defaults(func=cmd_v2)
     args = ap.parse_args()
     args.func(args)
 

@@ -1,24 +1,28 @@
 name: autopilot
 
-# Сборка ролика ниши + автопостинг в VK + Instagram + Threads (panel.db, пер-нишево).
-# Каждый запуск = 1 ролик одной ниши (ниши ротируются по часу). Ручной запуск + крон.
-#
-# РАМП ТЕМПА (как договорились: старт 1-2/день → постепенно до 3/ниша = 24/день):
-#   • СЕЙЧАС (бережно для новых аккаунтов): 2 ролика/день — одна строка cron ниже.
-#   • Нарастить: добавляй времена в cron (каждое = +1 ролик/день, ротация выберет нишу).
-#     Примеры: "0 6,12,18 * * *" = 3/день; "0 6,9,12,15,18,21 * * *" = 6/день;
-#              "0 */1 * * *" ≈ 24/день (≈3 на каждую из 8 ниш).
+# Автопостинг v2: раздельный контент по площадкам, крон разносит выходы по дню (МСК = UTC+3).
+#   08:00 UTC (11 МСК) → ig_vk   : видео → Instagram Reels + VK Клипы (авто)
+#   11:00 UTC (14 МСК) → youtube : видео → TG Паше (ручная выкладка)
+#   14:00 UTC (17 МСК) → text    : текст-история-сериал → Threads + VK сообщество (авто)
+#   17:00 UTC (20 МСК) → tiktok  : видео → TG Даше (ручная выкладка)
+# Сейчас крон ЗАКОММЕНТИРОВАН — тест через workflow_dispatch. Включить после успешного теста.
 
 on:
   workflow_dispatch:
     inputs:
+      output:
+        description: "выход: ig_vk | text | youtube | tiktok"
+        required: true
+        default: "ig_vk"
       niche:
-        description: "ниша (пусто = авто-ротация по часу)"
+        description: "ниша (пусто = все подходящие)"
         required: false
         default: ""
-  # КРОН ОТКЛЮЧЁН (по просьбе) — идёт пересборка архитектуры (авто-площадки + TG-очередь для YT/TikTok).
   # schedule:
-  #   - cron: "0 9,18 * * *"   # UTC; +3ч = 12:00 и 21:00 МСК
+  #   - cron: "0 8 * * *"    # ig_vk
+  #   - cron: "0 11 * * *"   # youtube
+  #   - cron: "0 14 * * *"   # text
+  #   - cron: "0 17 * * *"   # tiktok
 
 concurrency:
   group: autopilot
@@ -27,48 +31,41 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
     env:
       GITHUB_TOKEN: ${{ secrets.MEDIA_PAT }}   # media_host пушит видео в cf-media → raw URL для IG/Threads
       PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Установить ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
       - name: Python-зависимости
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-
       - name: Записать секреты
         env:
           SECRETS_ENV: ${{ secrets.SECRETS_ENV }}
         run: |
           mkdir -p ~/.config/content-factory
           printf '%s' "$SECRETS_ENV" > ~/.config/content-factory/secrets.env
-
-      - name: Выбрать нишу
+      - name: Выбрать выход (по cron-времени или вручную)
         id: pick
         run: |
-          IN="${{ github.event.inputs.niche }}"
-          if [ -n "$IN" ]; then
-            echo "niche=$IN" >> "$GITHUB_OUTPUT"
-          else
-            niches=(ai_lifehacks mind_facts history_facts talking_objects business_stories mystic_stories soviet_things psy_stories)
-            idx=$(( ( $(date -u +%j) * 24 + $(date -u +%H) ) % ${#niches[@]} ))
-            echo "niche=${niches[$idx]}" >> "$GITHUB_OUTPUT"
-          fi
-          echo "Ниша: $(cat $GITHUB_OUTPUT | grep niche=)"
-
-      - name: Собрать и запостить
-        run: python3 factory.py autopost "${{ steps.pick.outputs.niche }}"
-
+          case "${{ github.event.schedule }}" in
+            "0 8 * * *")  OUT=ig_vk ;;
+            "0 11 * * *") OUT=youtube ;;
+            "0 14 * * *") OUT=text ;;
+            "0 17 * * *") OUT=tiktok ;;
+            *)            OUT="${{ github.event.inputs.output }}" ;;
+          esac
+          echo "out=$OUT" >> "$GITHUB_OUTPUT"
+          echo "Выход: $OUT"
+      - name: Сгенерировать и выложить
+        run: python3 factory.py v2 "${{ steps.pick.outputs.out }}" ${{ github.event.inputs.niche }}
       - name: Сохранить состояние сериалов (CI эфемерный → коммит-бэк)
         if: always()
         run: |
