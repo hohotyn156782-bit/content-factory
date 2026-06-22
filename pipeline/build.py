@@ -7,6 +7,7 @@ build_video(niche_id, topic) → папка output/<стамп-ниша-слаг
   POST.txt          — человекочитаемый набор подписей под каждую площадку
   script.json       — исходный сценарий
 """
+import os
 import json
 import pathlib
 
@@ -35,6 +36,48 @@ def _pick_music() -> str | None:
     tracks = sorted([p for p in core.MUSIC_DIR.iterdir()
                      if p.suffix.lower() in (".mp3", ".m4a", ".wav", ".aac", ".ogg")])
     return str(tracks[0]) if tracks else None
+
+
+def _story_caption(sc: dict, niche: dict | None = None, serial_part: int | None = None) -> str:
+    """LLM-подпись для соцсетей (VK/IG/Threads): цепляющий крючок + интрига + вовлечение, по нише,
+    без AI-воды. serial_part=1 → концовка «продолжение завтра»; =2 → «это 2-я часть».
+    Гейт CF_STORY_CAPTION (по умолч. вкл). Fallback — исходный sc['caption']."""
+    if os.environ.get("CF_STORY_CAPTION", "1") == "0":
+        return sc.get("caption", "")
+    nd = niche or {}
+    ctx = json.dumps({"topic": sc.get("topic", ""), "hook": sc.get("hook", ""),
+                      "outro": sc.get("outro", ""),
+                      "first": (sc.get("segments") or [{}])[0].get("text", "")}, ensure_ascii=False)
+    tail = ""
+    if serial_part == 1:
+        tail = (" Это ПЕРВАЯ часть истории: в самом конце добавь интригу-обещание продолжения "
+                "(напр. «Продолжение завтра — не пропусти» / «Часть 2 уже завтра»).")
+    elif serial_part == 2:
+        tail = " Это ВТОРАЯ часть: в начале коротко напомни, что это продолжение вчерашней истории."
+    system = (
+        f"Ты пишешь цепляющую подпись под вертикальное видео в нише «{nd.get('title', '')}». "
+        "По теме/хуку/сути напиши подпись на ЧИСТОМ русском: 2-4 коротких строки — интригующий крючок "
+        "(НЕ спойлерь развязку), одна фраза сути, в конце вовлекающий вопрос или мягкий призыв "
+        "(коммент/подписка). Живой тон, на «ты». ЗАПРЕЩЕНО: «создано с помощью ИИ», канцелярит, вода, "
+        "«кто бы решился проверить», спам-эмодзи (макс 1-2). Верни ТОЛЬКО текст подписи, без кавычек." + tail)
+    try:
+        txt = scriptmod._groq(system, "Контекст:\n" + ctx, temp=0.8, max_tokens=300, json_mode=False)
+        txt = (txt or "").strip()
+        # подстраховка: если провайдер всё же вернул JSON-обёртку — достаём текст
+        if txt.startswith("{"):
+            try:
+                d = json.loads(txt); cap = d.get("caption", d) if isinstance(d, dict) else txt
+                if isinstance(cap, dict):
+                    cap = "\n".join(cap.get("lines", [])) or ""
+                txt = cap if isinstance(cap, str) and cap else txt
+            except Exception:  # noqa: BLE001
+                pass
+        import re as _re
+        txt = _re.sub(r"\s*#\S+", "", txt.strip().strip('"')).strip()   # хэштеги добавим отдельно
+        return txt or sc.get("caption", "")
+    except Exception as e:  # noqa: BLE001
+        core.log_error("build._story_caption", e)
+        return sc.get("caption", "")
 
 
 def _build_captions(sc: dict, disclaimer: str = "", ai_used: bool = False,
@@ -176,6 +219,9 @@ def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None 
     disclaimer = ""
     if niche_id == "money_facts" or niche.get("category") == "money":
         disclaimer = "⚠️ Контент носит образовательный характер и не является финансовой рекомендацией."
+    # Фаза 3: сюжетная подпись с крючком/вовлечением для соцсетей (VK/IG/Threads). serial_part
+    # пробрасывается из meta['serial'] (Фаза 4); сейчас обычная история.
+    sc["caption"] = _story_caption(sc, niche, serial_part=sc.get("_serial_part")) or sc.get("caption", "")
     captions = _build_captions(sc, disclaimer=disclaimer, ai_used=False, niche=niche)
     meta = {
         "niche": niche_id,
