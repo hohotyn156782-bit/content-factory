@@ -51,7 +51,8 @@
       "rss_channels": [
         "UCbfYPyITQ-7l4upoX8nvctg",
         "UCUyDOdBWhC1MCxEjC46d-zw"
-      ]
+      ],
+      "has_yt_tiktok": true
     },
     {
       "id": "mind_facts",
@@ -94,7 +95,8 @@
         "threads"
       ],
       "broll_mode": "stock",
-      "rss_channels": []
+      "rss_channels": [],
+      "has_yt_tiktok": true
     },
     {
       "id": "history_facts",
@@ -135,7 +137,8 @@
         "instagram",
         "threads"
       ],
-      "broll_mode": "stock"
+      "broll_mode": "stock",
+      "has_yt_tiktok": false
     },
     {
       "id": "money_facts",
@@ -175,7 +178,8 @@
       "platforms": [
         "vk"
       ],
-      "broll_mode": "stock"
+      "broll_mode": "stock",
+      "has_yt_tiktok": false
     },
     {
       "id": "ai_lifehacks_en",
@@ -218,11 +222,12 @@
         "tiktok",
         "instagram"
       ],
-      "broll_mode": "stock"
+      "broll_mode": "stock",
+      "has_yt_tiktok": false
     },
     {
       "id": "personal_brand",
-      "enabled": false,
+      "enabled": true,
       "role": "brand",
       "lang": "ru",
       "title": "BaronPavel — боты/сайты/автоматизация (личный бренд)",
@@ -263,7 +268,8 @@
         "vk",
         "threads"
       ],
-      "broll_mode": "stock"
+      "broll_mode": "stock",
+      "has_yt_tiktok": true
     },
     {
       "id": "talking_objects",
@@ -305,7 +311,8 @@
         "instagram",
         "threads"
       ],
-      "broll_mode": "ai_images"
+      "broll_mode": "ai_images",
+      "has_yt_tiktok": false
     },
     {
       "id": "business_stories",
@@ -348,7 +355,8 @@
         "instagram",
         "threads"
       ],
-      "broll_mode": "ai_images"
+      "broll_mode": "ai_images",
+      "has_yt_tiktok": true
     },
     {
       "id": "mystic_stories",
@@ -392,7 +400,8 @@
         "instagram",
         "threads"
       ],
-      "broll_mode": "ai_images"
+      "broll_mode": "ai_images",
+      "has_yt_tiktok": false
     },
     {
       "id": "what_if",
@@ -436,7 +445,8 @@
         "instagram",
         "vk"
       ],
-      "broll_mode": "ai_images"
+      "broll_mode": "ai_images",
+      "has_yt_tiktok": false
     },
     {
       "id": "soviet_things",
@@ -479,7 +489,8 @@
         "instagram",
         "threads"
       ],
-      "broll_mode": "ai_images"
+      "broll_mode": "ai_images",
+      "has_yt_tiktok": false
     },
     {
       "id": "psy_stories",
@@ -523,7 +534,8 @@
         "instagram",
         "threads"
       ],
-      "broll_mode": "ai_images"
+      "broll_mode": "ai_images",
+      "has_yt_tiktok": true
     }
   ]
 }
