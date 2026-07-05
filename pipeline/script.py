@@ -255,11 +255,17 @@ def _trim_to_words(sc: dict, max_words: int = 80, min_segments: int = 4) -> dict
 
 
 def generate(niche: dict, topic: str | None = None, avoid: list[str] | None = None,
-             serial: dict | None = None, platform_hint: str = "") -> dict:
+             serial: dict | None = None, platform_hint: str = "", target_words: int | None = None) -> dict:
     """Сгенерировать сценарий под нишу. serial={'part':1} → завязка+клиффхэнгер (часть 1 из 2);
     serial={'part':2,'premise':...} → продолжение. platform_hint — стиль/формат под площадку
-    (YouTube/TikTok/Reels-VK). Возвращает нормализованный dict."""
+    (YouTube/TikTok/Reels-VK). target_words — целевая длина озвучки под площадку (в окне validate 62-92).
+    Возвращает нормализованный dict."""
     import core as _core
+    # целевая длина под площадку, зажатая в окно validate() (62-92): диапазон для промпта и trim
+    tw = int(target_words) if target_words else 80
+    tw = max(66, min(90, tw))
+    w_lo, w_hi = max(62, tw - 6), min(92, tw + 5)
+    w_trim = min(92, tw + 8)
     if topic:                                  # анти-prompt-injection: тема приходит из любых источников
         topic = _core.sanitize_external(topic)
     lang = niche.get("lang", "ru")
@@ -270,7 +276,7 @@ def generate(niche: dict, topic: str | None = None, avoid: list[str] | None = No
     if niche.get("format") == "story":   # сторителлинг-плейбук вместо «фактов»
         hooks = STORY_HOOKS_RU if is_ru else STORY_HOOKS_EN
         struct = STORY_STRUCT_RU if is_ru else STORY_STRUCT_EN
-    avoid = AVOID_RU if is_ru else AVOID_EN
+    avoid_block = AVOID_RU if is_ru else AVOID_EN   # бан-лист приёмов для system-промпта
     angles = _angles_for(niche)
     angles_block = ""
     if angles:
@@ -368,6 +374,8 @@ def generate(niche: dict, topic: str | None = None, avoid: list[str] | None = No
         '    {"text": "1-2 коротких предложения сути", "broll_query": "english scene description for this exact line"}\n'
         '  ],\n'
         '  "outro": "финальная фраза + мягкий призыв подписаться",\n'
+        '  "thumb_text": "2-4 слова для ОБЛОЖКИ: самая цепляющая суть крупным текстом, ЗАКОНЧЕННАЯ '
+        'фраза (НЕ обрывать на предлоге/союзе), напр. \'Ты теряешь деньги\' или \'Мозг тебя обманывает\'",\n'
         '  "title": "заголовок для YouTube до 80 символов, цепляющий",\n'
         '  "description": "2-3 строки описания для YouTube",\n'
         '  "caption": "короткая подпись для TikTok/Instagram/VK, 1-2 строки",\n'
@@ -391,7 +399,7 @@ def generate(niche: dict, topic: str | None = None, avoid: list[str] | None = No
         f"перекликается с хуком (callback теми же словами), чтобы ролик зацикливался без склейки — это даёт "
         f"+30% продвижения (каждый повтор = просмотр). CTA — короткий вопрос для комментов или «сохрани» "
         f"(в духе «{niche.get('cta')}»), НИКОГДА «лайк и подписку».\n"
-        f"  • Всего озвучки СТРОГО 72-85 слов (ролик 30-35 секунд). Плотно, без воды, не растягивай.\n"
+        f"  • Всего озвучки СТРОГО {w_lo}-{w_hi} слов (ролик ~{int(w_lo/2.3)}-{int(w_hi/2.3)} секунд). Плотно, без воды, не растягивай.\n"
         f"  • broll_query — КОНКРЕТНАЯ визуальная сцена, ТОЧНО иллюстрирующая смысл ИМЕННО ЭТОЙ фразы "
         f"(не общая тема ролика, а буквально что происходит в кадре под эти слова). "
         + (f"ЭТО СТОРИ ПРО ОДНОГО ПЕРСОНАЖА: КАЖДЫЙ broll_query должен показывать того же персонажа из поля "
@@ -403,7 +411,7 @@ def generate(niche: dict, topic: str | None = None, avoid: list[str] | None = No
            f"'person pausing confused in a doorway'). РАЗНООБРАЗЬ кадры, не повторяй людей/фон.\n") +
         f"  СТРОГО ЗАПРЕЩЕНО: abstract, 3d render, patterns, particles, motion graphics, logo, badge, icon, neon shapes. "
         f"Ориентир ниши: {niche.get('broll_hint')}. Избегай штампов (handshake, lightbulb, typing laptop).\n\n"
-        f"{anti}\n\n{avoid}\n\n"
+        f"{anti}\n\n{avoid_block}\n\n"
         f"Верни СТРОГО валидный JSON по схеме (без markdown, без комментариев):\n{schema_hint}"
     )
     platform_line = (("\n🎯 " + platform_hint) if platform_hint else "")
@@ -439,7 +447,7 @@ def generate(niche: dict, topic: str | None = None, avoid: list[str] | None = No
                 pass
         except Exception:  # noqa: BLE001 — сбой LLM/парса, пробуем ещё раз
             continue
-        sc = _trim_to_words(sc, max_words=80)     # механически режем до целевой длины (30-35с)
+        sc = _trim_to_words(sc, max_words=w_trim)   # механически режем до целевой длины под площадку
         if sc.get("segments"):
             fallback = fallback or sc
         if not validate(sc)[0]:
@@ -829,6 +837,7 @@ def _normalize(data: dict, niche: dict) -> dict:
         "segments": segs,
         "outro": outro,
         "title": (_clean_line(data.get("title")) or hook)[:90],
+        "thumb_text": _clean_line(data.get("thumb_text")),   # короткая законченная фраза для обложки
         "description": _clean_line(data.get("description")),
         "caption": _clean_line(data.get("caption")) or hook,
         "hashtags": hashtags,

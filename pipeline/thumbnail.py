@@ -15,6 +15,7 @@
 Pillow импортируем ЛЕНИВО внутри функций (как договорено в проекте).
 """
 import os
+import re
 import sys
 import hashlib
 import pathlib
@@ -384,10 +385,31 @@ def _wrap(draw, text: str, font, max_w: float, stroke: int) -> list[str]:
 
 # ──────────────────────────── Из meta.json ────────────────────────────
 
+# Служебные слова: обложка НЕ должна заканчиваться на них (иначе «…живут НА» — обрыв фразы).
+_TAIL_STOP = frozenset({
+    "на", "в", "во", "с", "со", "к", "ко", "по", "за", "из", "от", "до", "у", "о", "об", "про",
+    "и", "а", "но", "или", "да", "же", "бы", "ли", "что", "как", "это", "не", "ни", "для", "без",
+    "the", "a", "an", "of", "to", "in", "on", "at", "for", "and", "or", "but", "with", "your", "you",
+})
+
+
+def _strip_dangling(head: str) -> str:
+    """Убрать висящие служебные слова в конце (предлог/союз/частица) — фраза не должна обрываться на них."""
+    ws = head.split()
+    while len(ws) > 1 and re.sub(r"[^\w]", "", ws[-1].lower()) in _TAIL_STOP:
+        ws.pop()
+    return " ".join(ws)
+
+
 def _thumb_hook(meta: dict, fallback: str) -> str:
-    """#9: короткий хук-текст для обложки (≤5 слов / ≤22 симв) вместо длинного SEO-title.
-    Берём meta['hook'] / первый hook_variant, режем до первого знака препинания и до N слов;
-    фолбэк на длинный заголовок, если хука нет."""
+    """#9: короткий текст для обложки. Приоритет — meta['thumb_text'] (законченная фраза от LLM);
+    иначе meta['hook']/hook_variant, режем до первой «фразы» и до N слов, БЕЗ висящих служебных слов."""
+    tt = (meta.get("thumb_text", "") or "").strip()
+    if tt:
+        tt = re.split(r"[.!?\n]", tt, 1)[0].strip()      # одна фраза
+        w = tt.split()
+        if 1 <= len(w) <= 6 and len(tt) <= 30:           # валидный короткий thumb_text — берём как есть
+            return _strip_dangling(tt) or tt
     raw = (meta.get("hook", "") or "").strip()
     if not raw:
         hv = meta.get("hook_variants") or []
@@ -395,21 +417,21 @@ def _thumb_hook(meta: dict, fallback: str) -> str:
     if not raw:
         return fallback
     # обрезаем по первому знаку препинания (берём первую «фразу» хука)
-    import re as _re
-    head = _re.split(r"[.!?,:;—–\-…\n]", raw, 1)[0].strip()
+    head = re.split(r"[.!?,:;—–\-…\n]", raw, 1)[0].strip()
     head = head or raw
     words = head.split()
     if len(words) > 5:
         head = " ".join(words[:5])
-    if len(head) > 22:
-        # режем по словам, чтобы не оборвать на полуслове и держаться ≤22 симв
+    if len(head) > 24:
+        # режем по словам, чтобы не оборвать на полуслове и держаться ≤24 симв
         acc = []
         for w in head.split():
             cand = (" ".join(acc + [w])).strip()
-            if len(cand) > 22:
+            if len(cand) > 24:
                 break
             acc.append(w)
-        head = " ".join(acc) if acc else head[:22].rstrip()
+        head = " ".join(acc) if acc else head[:24].rstrip()
+    head = _strip_dangling(head)                          # финально — без висящего предлога/союза
     return head.strip() or fallback
 
 

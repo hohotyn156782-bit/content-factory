@@ -38,13 +38,15 @@ def _pick_music() -> str | None:
     return str(tracks[0]) if tracks else None
 
 
-# Спеки формата под площадку (v2: раздельные ролики). max_words ≈ длина озвучки (~2.3 слова/сек).
+# Спеки формата под площадку (v2: раздельные ролики). target ≈ длина озвучки (~2.3 слова/сек).
+# target держим В ПРЕДЕЛАХ окна validate() (62-92 слов) — иначе сценарий отклоняется и жжёт попытки:
+# YouTube длиннее (информативнее ~38с), ig_vk средне (~34с), TikTok короче/динамичнее (~28-30с).
 PLATFORM_SPECS = {
-    "youtube": {"max_words": 95, "hint": "Формат YouTube Shorts: чуть длиннее и информативнее, "
+    "youtube": {"target": 88, "hint": "Формат YouTube Shorts: чуть длиннее и информативнее, "
                 "ценность + интрига, сильный образовательный угол, держи до конца."},
-    "tiktok":  {"max_words": 52, "hint": "Формат TikTok: коротко и динамично, мощный хук в первую "
+    "tiktok":  {"target": 66, "hint": "Формат TikTok: коротко и динамично, мощный хук в первую "
                 "секунду, трендовая разговорная подача, без лишних слов."},
-    "ig_vk":   {"max_words": 80, "hint": "Формат Reels/VK Клипы: эстетично и эмоционально, под "
+    "ig_vk":   {"target": 80, "hint": "Формат Reels/VK Клипы: эстетично и эмоционально, под "
                 "русскую аудиторию, плавный ритм, цепляющая концовка."},
 }
 
@@ -176,7 +178,7 @@ def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None 
     avoid = topics_db.recent_titles(days=45) or core.recent_topics(niche_id)
     spec = PLATFORM_SPECS.get(platform or "", {})
     sc = scriptmod.generate(niche, topic=topic, avoid=avoid, serial=serial,
-                            platform_hint=spec.get("hint", ""))
+                            platform_hint=spec.get("hint", ""), target_words=spec.get("target"))
     if serial:
         sc["_serial_part"] = serial.get("part")     # → _story_caption добавит «продолжение завтра»
     if platform:
@@ -260,6 +262,7 @@ def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None 
         "qa": qa_result,
         "virality": sc.get("virality", {}),
         "hook": sc.get("hook", ""),                      # для обложки (короткий хук-текст)
+        "thumb_text": sc.get("thumb_text", ""),          # приоритетный текст обложки (законченная фраза)
         "hook_variants": sc.get("hook_variants", []),
         "title_variants": sc.get("title_variants", []),
     }

@@ -28,7 +28,19 @@ NICHES_FILE = ROOT / "niches.json"
 # ВСЕ тяжёлые данные — на диск D (диск C переполнен, WSL живёт на C → писать туда нельзя).
 # Если /mnt/d недоступен (другая машина/CI) — падаем обратно в папку проекта.
 _D = pathlib.Path("/mnt/d/content-factory-data")
-DATA_ROOT = _D if pathlib.Path("/mnt/d").is_dir() else ROOT
+# CF_DATA_ROOT (env) имеет приоритет — в CI указываем на коммитимую папку (state/cfdata),
+# чтобы history.jsonl/cooldown переживали эфемерный раннер и работал антидубль тем между выходами дня.
+_env_root = os.environ.get("CF_DATA_ROOT", "").strip()
+if _env_root:
+    DATA_ROOT = pathlib.Path(_env_root)
+elif pathlib.Path("/mnt/d").is_dir():
+    DATA_ROOT = _D
+else:
+    DATA_ROOT = ROOT
+try:
+    DATA_ROOT.mkdir(parents=True, exist_ok=True)
+except Exception:  # noqa: BLE001
+    pass
 HISTORY_FILE = DATA_ROOT / "history.jsonl"
 
 OUTPUT_DIR = DATA_ROOT / "output"

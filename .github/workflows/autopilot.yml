@@ -35,6 +35,7 @@ jobs:
     env:
       GITHUB_TOKEN: ${{ secrets.MEDIA_PAT }}   # media_host пушит видео в cf-media → raw URL для IG/Threads
       PYTHONUNBUFFERED: "1"
+      CF_DATA_ROOT: ${{ github.workspace }}/state/cfdata   # персист history.jsonl между ранами (антидубль тем)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -54,26 +55,57 @@ jobs:
           printf '%s' "$SECRETS_ENV" > ~/.config/content-factory/secrets.env
       - name: Выбрать выход (по cron-времени или вручную)
         id: pick
+        env:
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_OUT: ${{ github.event.inputs.output }}
         run: |
-          case "${{ github.event.schedule }}" in
+          case "$SCHEDULE" in
             "0 8 * * *")  OUT=ig_vk ;;
             "0 11 * * *") OUT=youtube ;;
             "0 14 * * *") OUT=text ;;
             "0 17 * * *") OUT=tiktok ;;
-            *)            OUT="${{ github.event.inputs.output }}" ;;
+            *)            OUT="$INPUT_OUT" ;;
           esac
           echo "out=$OUT" >> "$GITHUB_OUTPUT"
           echo "Выход: $OUT"
       - name: Сгенерировать и выложить
-        run: python3 factory.py v2 "${{ steps.pick.outputs.out }}" ${{ github.event.inputs.niche }}
-      - name: Сохранить состояние сериалов (CI эфемерный → коммит-бэк)
+        env:
+          OUT: ${{ steps.pick.outputs.out }}
+          NICHE: ${{ github.event.inputs.niche }}
+        run: |
+          mkdir -p "$CF_DATA_ROOT"
+          python3 factory.py v2 "$OUT" $NICHE
+      - name: Сохранить состояние (сериалы + история тем) — коммит-бэк с ретраем
         if: always()
         run: |
           git config user.email "autopilot@content-factory"
           git config user.name "cf-autopilot"
-          if [ -n "$(git status --porcelain state/ 2>/dev/null)" ]; then
-            git add state/
-            git pull --rebase --autostash origin master || true
-            git commit -m "state: серийное состояние [skip ci]" || true
-            git push origin master || true
+          # факт. изменения только под state/ (serials.json, cfdata/history.jsonl)
+          if [ -z "$(git status --porcelain state/ 2>/dev/null)" ]; then
+            echo "state/ без изменений — коммитить нечего"; exit 0
           fi
+          git add state/
+          git commit -m "state: сериалы+история тем [skip ci]" || { echo "нечего коммитить"; exit 0; }
+          ok=""
+          for i in 1 2 3 4 5; do
+            git pull --rebase --autostash origin master && git push origin master && { ok=1; break; }
+            echo "push попытка $i не удалась, повтор через 5с"; sleep 5
+          done
+          if [ -z "$ok" ]; then
+            echo "::error::коммит-бэк state/ не удался после 5 попыток — состояние сериалов может рассинхрониться"
+            exit 1
+          fi
+      - name: Алерт в TG при падении джобы
+        if: failure()
+        env:
+          SECRETS_ENV: ${{ secrets.SECRETS_ENV }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OUT: ${{ steps.pick.outputs.out }}
+        run: |
+          mkdir -p ~/.config/content-factory
+          printf '%s' "$SECRETS_ENV" > ~/.config/content-factory/secrets.env
+          python3 - <<'PY'
+          import os, core, reporter
+          core.load_local_secrets()
+          reporter.critical(f"🛑 CI autopilot УПАЛ · выход={os.environ.get('OUT','?')}\n{os.environ.get('RUN_URL','')}")
+          PY

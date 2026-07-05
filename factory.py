@@ -179,14 +179,19 @@ def cmd_run(args):
 
 
 def _niche_accounts(niche_id: str) -> list:
-    """Все connected+auto_post аккаунты ниши (vk/instagram/threads) из ВСЕХ её бандлов."""
+    """Все connected+auto_post аккаунты ниши (vk/instagram/threads) из ВСЕХ её бандлов,
+    пересечённые с niches.json['platforms'] (защита от постинга в чужую/личную площадку)."""
     from panel import db
+    allowed = set(core.get_niche(niche_id).get("platforms", []) or [])
     out = []
     for b in db.list_bundles():
         if b.get("niche_id") != niche_id or b.get("status", "active") != "active":
             continue
         for acc in b.get("accounts", []):
-            if acc.get("platform") not in ("vk", "instagram", "threads"):
+            p = acc.get("platform")
+            if p not in ("vk", "instagram", "threads"):
+                continue
+            if allowed and p not in allowed:
                 continue
             if acc.get("status") != "connected" or not acc.get("auto_post"):
                 continue
@@ -278,10 +283,24 @@ def cmd_autopost(args):
 
 
 def cmd_v2(args):
-    """v2-автопостинг по выходу: ig_vk|text|youtube|tiktok (крон разносит по дню)."""
+    """v2-автопостинг по выходу: ig_vk|text|youtube|tiktok (крон разносит по дню).
+    Возвращает ненулевой код, если НИ ОДНА публикация не удалась — чтобы CI-джоба покраснела
+    и владелец увидел сбой (а не «зелёный» ран при полном провале)."""
     core.load_local_secrets()
     from pipeline import autopilot
-    autopilot.run(args.output, args.niche)
+    allr = autopilot.run(args.output, args.niche)
+    ok = sum(1 for _, o, _ in allr if o)
+    if allr and ok == 0:
+        try:
+            import reporter
+            reporter.critical(f"🛑 Автопилот v2 «{args.output}»"
+                              f"{(' · ' + args.niche) if args.niche else ''}: 0/{len(allr)} успешных публикаций.")
+        except Exception:  # noqa: BLE001
+            pass
+        sys.exit(1)
+    # allr пуст = не нашлось аккаунтов/ниш под выход: это не «провал постинга», но сигналим варнингом
+    if not allr:
+        print(f"⚠️ v2 {args.output}: нет целей для публикации (проверь panel.db / niches.json)")
 
 
 def main():

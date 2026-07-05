@@ -28,6 +28,13 @@ panel/panel.db-wal
 panel/panel.db-shm
 panel/panel.db-journal
 
+# CI-персист (CF_DATA_ROOT=state/cfdata): коммитим ТОЛЬКО history.jsonl (антидубль тем),
+# factory.db регенерится из неё на каждом ране → саму БД и WAL в гит не тащим.
+state/cfdata/factory.db
+*.db-wal
+*.db-shm
+*.db-journal
+
 # Секреты — НИКОГДА в гит
 secrets.env
 *token*.json

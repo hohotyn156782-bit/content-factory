@@ -20,6 +20,22 @@ STYLE_EN = {
 }
 
 
+def day_topic(niche: dict) -> str:
+    """Одна тема истории на день — чтобы РАЗНЫЕ площадки (Threads/VK) рассказывали ОДНУ историю
+    (иначе часть 2 продолжит только одну из двух завязок). Возвращает короткую тему (3-8 слов)."""
+    is_ru = niche.get("lang", "ru") == "ru"
+    sys_p = (f"Ниша «{niche.get('title')}» — {niche.get('topic_brief')}. Придумай ОДНУ конкретную тему "
+             f"для истории-поста (3-8 слов), необычный цепляющий угол. Только тема, без кавычек и пояснений."
+             if is_ru else
+             f"Niche '{niche.get('title')}' — {niche.get('topic_brief')}. Invent ONE specific story topic "
+             f"(3-8 words), an unusual hook angle. Topic only, no quotes.")
+    try:
+        t = S._groq(sys_p, ("Тема:" if is_ru else "Topic:"), temp=0.9, max_tokens=40, json_mode=False)
+        return re.sub(r'^["«»\s]+|["«»\s]+$', "", t or "")[:120]
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def generate_text(niche: dict, platform: str, topic: str = "", serial: dict | None = None) -> str:
     is_ru = niche.get("lang", "ru") == "ru"
     style = (STYLE if is_ru else STYLE_EN).get(platform, (STYLE if is_ru else STYLE_EN)["vk"])

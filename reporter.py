@@ -5,20 +5,34 @@ import urllib.request
 import core
 
 
+def esc(s) -> str:
+    """Экранировать динамику для parse_mode=HTML (LLM-темы и тексты ошибок часто содержат <, &, >)."""
+    return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _post(token: str, chat: str, text: str, parse_mode: str | None) -> bool:
+    payload = {"chat_id": chat, "text": text, "disable_web_page_preview": True}
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
+    body = json.dumps(payload).encode()
+    req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage",
+                                 data=body, headers={"Content-Type": "application/json"})
+    urllib.request.urlopen(req, timeout=20)
+    return True
+
+
 def send(text: str) -> bool:
     token = core.secret("TG_BOT_TOKEN", required=False)
     chat = core.secret("TG_CHAT_ID", required=False)
     if not token or not chat:
         return False
-    body = json.dumps({"chat_id": chat, "text": text, "parse_mode": "HTML",
-                       "disable_web_page_preview": True}).encode()
-    req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage",
-                                 data=body, headers={"Content-Type": "application/json"})
     try:
-        urllib.request.urlopen(req, timeout=20)
-        return True
-    except Exception:  # noqa: BLE001
-        return False
+        return _post(token, chat, text, "HTML")
+    except Exception:  # noqa: BLE001 — неэкранированная сущность даёт 400: шлём без разметки, чтобы отчёт дошёл
+        try:
+            return _post(token, chat, text, None)
+        except Exception:  # noqa: BLE001
+            return False
 
 
 def critical(text: str, attach: str | None = None) -> bool:
@@ -47,12 +61,12 @@ def critical(text: str, attach: str | None = None) -> bool:
 def report_run(meta: dict, results: dict) -> None:
     topic = meta.get("topic", "?")
     dur = meta.get("duration", 0)
-    lines = [f"🎬 <b>Фабрика контента</b> · {meta.get('niche')}",
-             f"Тема: {topic} · {dur:.0f}с",
+    lines = [f"🎬 <b>Фабрика контента</b> · {esc(meta.get('niche'))}",
+             f"Тема: {esc(topic)} · {dur:.0f}с",
              f"B-roll: сток {meta.get('stock_used', 0)} / генер. {meta.get('generated_bg', 0)}", ""]
     for platform, res in results.items():
         ok = res.get("ok")
         icon = "✅" if ok else "❌"
         detail = res.get("url") or res.get("note") or res.get("error") or ""
-        lines.append(f"{icon} {platform}: {str(detail)[:120]}")
+        lines.append(f"{icon} {esc(platform)}: {esc(str(detail)[:120])}")
     send("\n".join(lines))

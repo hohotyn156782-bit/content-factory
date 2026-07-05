@@ -15,15 +15,23 @@ STATE = core.ROOT / "state" / "serials.json"
 
 
 def _load() -> dict:
+    if not STATE.exists():
+        return {}
     try:
-        return json.loads(STATE.read_text(encoding="utf-8")) if STATE.exists() else {}
-    except Exception:  # noqa: BLE001
+        return json.loads(STATE.read_text(encoding="utf-8"))
+    except Exception as e:  # noqa: BLE001 — битый файл не должен молча стереть память сериалов
+        core.log_error("serials._load", e)
         return {}
 
 
 def _save(d: dict) -> None:
+    """Атомарная запись: temp + os.replace — обрыв процесса не оставит битый/пустой JSON
+    (иначе part2_pending теряется, развязка сериала не выходит, и битый файл ещё и закоммитится)."""
     STATE.parent.mkdir(parents=True, exist_ok=True)
-    STATE.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp = STATE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=2), encoding="utf-8")
+    import os
+    os.replace(tmp, STATE)
 
 
 def plan_episode(niche_id: str, today: str) -> dict | None:
