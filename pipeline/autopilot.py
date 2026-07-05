@@ -95,13 +95,24 @@ def _mark_posted(output: str, niche_id: str) -> None:
         core.log_error("autopilot._mark_posted", e)
 
 
-def _ledger(output: str, niche_id: str, topic: str, results: list) -> None:
-    """Дописать УСПЕШНЫЕ публикации в state/posts.jsonl — фундамент аналитики (метрики по URL позже)."""
+def _entry(platform: str, account: dict, ok: bool, info) -> dict:
+    """Запись леджера с ref (media_id/post_id для метрик) + secret_ref (ИМЯ env-токена, не значение)."""
+    url = _url(info)
+    ref = None
+    if isinstance(info, dict):
+        ref = info.get("id") or info.get("post_id")
+    return {"platform": platform, "account": account.get("display_name") or account.get("ext_id"),
+            "ok": ok, "url": url, "ref": ref,
+            "secret_ref": account.get("secret_ref"), "ext_id": account.get("ext_id")}
+
+
+def _ledger(output: str, niche_id: str, topic: str, entries: list) -> None:
+    """Дописать УСПЕШНЫЕ публикации в state/posts.jsonl — фундамент аналитики (метрики по ref/url позже).
+    entries — список dict от _entry() (или простых {'ok','url','platform','account'})."""
     day = core.today_str()
-    rows = [json.dumps({"ts": day, "output": output, "niche": niche_id, "topic": topic,
-                        "platform": lbl.split("/", 1)[0], "account": lbl.split("/", 1)[-1], "url": url},
+    rows = [json.dumps({"ts": day, "output": output, "niche": niche_id, "topic": topic, **e},
                        ensure_ascii=False)
-            for lbl, ok, url in results if ok]
+            for e in entries if e.get("ok")]
     if not rows:
         return
     try:
@@ -155,7 +166,7 @@ def post_ig_vk(niche_id: str) -> list:
         _qa_alert("ig_vk", niche_id, res.get("qa") or {})
         return [(f"ig_vk/{niche_id}", False, "QA не пройден")]
     video = meta["video"]
-    r = []
+    r, led = [], []
     for a in accs:
         p = a["platform"]
         if p == "instagram":
@@ -165,7 +176,8 @@ def post_ig_vk(niche_id: str) -> list:
             from adapters import vk_video
             ok, info = _retry_pub(vk_video.publish, video, meta, a)
         r.append((f"{p}/{a.get('display_name') or a.get('ext_id')}", ok, _url(info)))
-    _ledger("ig_vk", niche_id, meta.get("topic", ""), r)
+        led.append(_entry(p, a, ok, info))
+    _ledger("ig_vk", niche_id, meta.get("topic", ""), led)
     return r
 
 
@@ -186,7 +198,7 @@ def post_text(niche_id: str) -> list:
     else:
         topic = ""
     cache: dict = {}
-    r = []
+    r, led = [], []
     for a in accs:
         p = a["platform"]
         plat = "threads" if p == "threads" else "vk"
@@ -200,7 +212,8 @@ def post_text(niche_id: str) -> list:
             from adapters import vk_video
             ok, info = _retry_pub(vk_video.publish_text, text, a)
         r.append((f"{p}/{a.get('display_name') or a.get('ext_id')}", ok, _url(info)))
-    _ledger("text", niche_id, topic or niche.get("title", ""), r)
+        led.append(_entry(p, a, ok, info))
+    _ledger("text", niche_id, topic or niche.get("title", ""), led)
     # Фиксируем эпизод ТОЛЬКО при полном успехе: частичный провал → назавтра повторим часть 1
     # (лучше, чем часть 2 без части 1 у площадки, которая вчера упала).
     if ser and r and all(ok for _, ok, _ in r):
@@ -238,7 +251,10 @@ def queue_video(niche_id: str, target: str) -> list:
     ok, info = tg_queue.send_item(target, meta["video"], title, tags, _eng_question(sc),
                                   channel=core.get_niche(niche_id).get("title", ""), niche=niche_id,
                                   extras=extras)
-    _ledger(target, niche_id, sc.get("topic", ""), [(f"{target}/{niche_id}", ok, _url(info))])
+    # в леджер — как «в очереди» (URL появится позже, когда владелец выложит вручную)
+    _ledger(target, niche_id, sc.get("topic", ""),
+            [{"platform": target, "account": "tg-queue", "ok": ok, "url": None, "ref": None,
+              "queued": True}])
     return [(f"{target}/{niche_id}", ok, info)]
 
 

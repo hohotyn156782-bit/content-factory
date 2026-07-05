@@ -356,7 +356,8 @@
         "threads"
       ],
       "broll_mode": "ai_images",
-      "has_yt_tiktok": true
+      "has_yt_tiktok": true,
+      "subtitle_mode": "karaoke"
     },
     {
       "id": "mystic_stories",
@@ -401,7 +402,8 @@
         "threads"
       ],
       "broll_mode": "ai_images",
-      "has_yt_tiktok": false
+      "has_yt_tiktok": false,
+      "subtitle_mode": "karaoke"
     },
     {
       "id": "what_if",
@@ -535,7 +537,8 @@
         "threads"
       ],
       "broll_mode": "ai_images",
-      "has_yt_tiktok": true
+      "has_yt_tiktok": true,
+      "subtitle_mode": "karaoke"
     }
   ]
 }

@@ -361,6 +361,19 @@ def generate(niche: dict, topic: str | None = None, avoid: list[str] | None = No
         except Exception:  # noqa: BLE001 — бриф необязателен
             pass
 
+    # КАЛЕНДАРНЫЙ ХУК: если рядом инфоповод под нишу (НГ/8марта/Чёрная пятница/1сент…) — подмешиваем
+    # угол (контент за 2-4 дня ДО собирает больше). Только когда тема не задана. Гейт CF_CALENDAR.
+    if os.environ.get("CF_CALENDAR", "1") != "0" and not topic:
+        try:
+            from pipeline import calendar_hooks
+            cal = calendar_hooks.angle_for(niche.get("id", ""), _core.today_str())
+            if cal:
+                seed_line += (f"\n📅 АКТУАЛЬНЫЙ ИНФОПОВОД (впиши органично, если уместно): {cal}."
+                              if is_ru else
+                              f"\n📅 TIMELY OCCASION (weave in naturally if it fits): {cal}.")
+        except Exception:  # noqa: BLE001 — календарь необязателен
+            pass
+
     is_story = niche.get("format") == "story"
     char_schema = ('  "character": "ENGLISH visual description of the MAIN subject/character to show in EVERY shot '
                    '(e.g. \'a worn teal-blue credit card with a gold chip\'); keep it the SAME across the video",\n'

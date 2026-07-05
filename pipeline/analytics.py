@@ -85,6 +85,49 @@ def _vk_metrics(url: str) -> dict | None:
     return None
 
 
+def _graph_insights(url: str, metrics: list[str], token: str) -> dict | None:
+    """Общий разбор ответа Graph API insights ({data:[{name,values:[{value}]}]}) → {metric: value}."""
+    data = _http_json(url)
+    items = (data or {}).get("data")
+    if not items:
+        return None
+    out = {}
+    for it in items:
+        vals = it.get("values") or [{}]
+        v = (vals[0] or {}).get("value")
+        if isinstance(v, dict):
+            v = sum(x for x in v.values() if isinstance(x, (int, float)))
+        out[it.get("name")] = v or 0
+    return out or None
+
+
+def _ig_media_metrics(media_id: str, token: str) -> dict | None:
+    """IG Reels insights по media_id (нужен scope instagram_manage_insights в токене)."""
+    if not media_id or not token:
+        return None
+    api = f"https://graph.facebook.com/v21.0/{media_id}/insights?" + urllib.parse.urlencode(
+        {"metric": "reach,likes,comments,saved,views", "access_token": token})
+    ins = _graph_insights(api, [], token)
+    if not ins:
+        return None
+    return {"views": int(ins.get("views") or ins.get("reach") or 0),
+            "likes": int(ins.get("likes") or 0), "comments": int(ins.get("comments") or 0),
+            "saved": int(ins.get("saved") or 0), "reach": int(ins.get("reach") or 0)}
+
+
+def _threads_post_metrics(post_id: str, token: str) -> dict | None:
+    """Threads insights по post_id (scope threads_manage_insights)."""
+    if not post_id or not token:
+        return None
+    api = f"https://graph.threads.net/v1.0/{post_id}/insights?" + urllib.parse.urlencode(
+        {"metric": "views,likes,replies,reposts,quotes", "access_token": token})
+    ins = _graph_insights(api, [], token)
+    if not ins:
+        return None
+    return {"views": int(ins.get("views") or 0), "likes": int(ins.get("likes") or 0),
+            "comments": int(ins.get("replies") or 0), "reposts": int(ins.get("reposts") or 0)}
+
+
 _FETCHERS = {"youtube": _youtube_metrics, "vk": _vk_metrics}
 
 
@@ -130,6 +173,87 @@ def collect() -> int:
                 n += 1
     print(f"✓ снято метрик: {n}")
     return n
+
+
+LEDGER = core.ROOT / "state" / "posts.jsonl"   # v2-леджер публикаций (autopilot._LEDGER)
+
+
+def _ledger_token(secret_ref: str | None) -> str:
+    import os
+    return os.environ.get(str(secret_ref or "").strip(), "") if secret_ref else ""
+
+
+def collect_ledger() -> int:
+    """Снять метрики по публикациям v2-леджера (state/posts.jsonl) — IG/Threads/VK — в performance_log.
+    Закрывает разрыв: autopilot v2 пишет в леджер (не в panel.db), а старый collect() читал panel.db."""
+    core.load_local_secrets()
+    if not LEDGER.exists():
+        print("леджер пуст — публикаций v2 ещё не было")
+        return 0
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    ts = core._now().isoformat()
+    seen: dict = {}
+    for ln in LEDGER.read_text(encoding="utf-8").splitlines():
+        if not ln.strip():
+            continue
+        try:
+            e = json.loads(ln)
+        except ValueError:
+            continue
+        if not e.get("ok") or e.get("queued"):
+            continue
+        key = (e.get("platform"), e.get("ref") or e.get("url"))
+        seen[key] = e            # последняя запись по посту
+    n = 0
+    with PERF_LOG.open("a", encoding="utf-8") as f:
+        for e in seen.values():
+            plat, ref, url = e.get("platform"), e.get("ref"), e.get("url")
+            tok = _ledger_token(e.get("secret_ref"))
+            try:
+                if plat == "instagram":
+                    m = _ig_media_metrics(ref, tok)
+                elif plat == "threads":
+                    m = _threads_post_metrics(ref, tok)
+                elif plat == "vk":
+                    m = _vk_metrics(url) if url else None
+                else:
+                    m = None
+            except Exception:  # noqa: BLE001
+                m = None
+            if not m:
+                continue
+            f.write(json.dumps({"ts": ts, "content_id": str(ref or url), "niche": e.get("niche"),
+                                "platform": plat, "url": url, "topic": e.get("topic"),
+                                "posted": e.get("ts"), "virality": None, **m}, ensure_ascii=False) + "\n")
+            n += 1
+    print(f"✓ снято метрик из леджера: {n}")
+    return n
+
+
+def weekly_digest() -> str:
+    """Недельная сводка «что залетело» → TG (reporter). Топ-посты по просмотрам + средние по нишам."""
+    core.load_local_secrets()
+    if not PERF_LOG.exists():
+        return ""
+    rows = [json.loads(ln) for ln in PERF_LOG.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    latest = list(_latest_per_target(rows).values())
+    if not latest:
+        return ""
+    top = sorted(latest, key=lambda r: -int(r.get("views", 0)))[:5]
+    by_niche: dict[str, list[int]] = {}
+    for r in latest:
+        by_niche.setdefault(r.get("niche") or "?", []).append(int(r.get("views", 0)))
+    import reporter
+    lines = ["📊 <b>Недельный дайджест фабрики</b>", "", "🔥 <b>Топ-посты:</b>"]
+    for r in top:
+        t = reporter.esc((r.get("topic") or r.get("niche") or "?")[:48])
+        lines.append(f"• {int(r.get('views',0))} просм · {reporter.esc(r.get('platform',''))} · {t}")
+    lines += ["", "📈 <b>Средние просмотры по нишам:</b>"]
+    for nid, vs in sorted(by_niche.items(), key=lambda kv: -(sum(kv[1]) / len(kv[1]))):
+        lines.append(f"• {reporter.esc(nid)}: {round(sum(vs)/len(vs))} (n={len(vs)}, вес {weight_for(nid)})")
+    text = "\n".join(lines)
+    reporter.send(text)
+    return text
 
 
 # ──────────────────────────── пересчёт весов ────────────────────────────
@@ -278,7 +402,11 @@ if __name__ == "__main__":
     core.load_local_secrets()
     if cmd == "collect":
         collect()
+    elif cmd == "collect_ledger":
+        collect_ledger()
     elif cmd == "recalibrate":
         recalibrate()
+    elif cmd == "digest":
+        print(weekly_digest() or "(нет данных для дайджеста)")
     else:
         report()

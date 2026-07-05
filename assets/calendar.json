@@ -1,0 +1,20 @@
+{
+  "_comment": "Календарь инфоповодов РФ: контент за 2-4 дня ДО события собирает больше охвата. from/to = MM-DD (окно, когда подмешивать угол в промпт). niches: список id или '*' (все). angle — краткая затравка для сценариста.",
+  "events": [
+    {"from": "12-26", "to": "01-08", "name": "Новый год / итоги года", "niches": ["*"], "angle": "привяжи к Новому году, итогам года или новогодним привычкам/тратам/решениям"},
+    {"from": "01-09", "to": "01-14", "name": "Постновогодний спад", "niches": ["psy_stories", "money_facts", "mind_facts"], "angle": "постпраздничная хандра, пустой кошелёк после праздников, как перезапустить год"},
+    {"from": "02-10", "to": "02-14", "name": "День святого Валентина", "niches": ["psy_stories", "money_facts", "mind_facts"], "angle": "тема отношений, психологии влюблённости или трат на подарки"},
+    {"from": "02-18", "to": "02-23", "name": "23 февраля", "niches": ["history_facts", "soviet_things", "business_stories"], "angle": "военная история, сила характера, легендарные личности"},
+    {"from": "03-01", "to": "03-08", "name": "8 марта", "niches": ["psy_stories", "history_facts", "money_facts"], "angle": "великие женщины, психология, подарки и траты к празднику"},
+    {"from": "04-08", "to": "04-12", "name": "День космонавтики", "niches": ["history_facts", "soviet_things", "what_if", "mind_facts", "ai_lifehacks"], "angle": "космос, Гагарин, советская наука, 'что если' про космос"},
+    {"from": "04-25", "to": "05-01", "name": "Весна труда", "niches": ["business_stories", "money_facts", "personal_brand"], "angle": "труд, карьера, как построить дело"},
+    {"from": "05-04", "to": "05-09", "name": "9 мая", "niches": ["history_facts", "soviet_things"], "angle": "история войны, подвиги, память (уважительно, без спекуляций)"},
+    {"from": "05-25", "to": "06-20", "name": "ЕГЭ / экзамены", "niches": ["psy_stories", "mind_facts", "ai_lifehacks"], "angle": "стресс экзаменов, как работает память, ИИ в учёбе"},
+    {"from": "06-08", "to": "06-12", "name": "День России", "niches": ["history_facts", "soviet_things"], "angle": "история страны, великие достижения"},
+    {"from": "08-25", "to": "09-01", "name": "1 сентября", "niches": ["psy_stories", "money_facts", "mind_facts", "ai_lifehacks"], "angle": "начало учёбы, сборы в школу и траты, обучение, ИИ для учёбы"},
+    {"from": "09-10", "to": "09-13", "name": "День программиста", "niches": ["ai_lifehacks", "personal_brand", "ai_lifehacks_en", "business_stories"], "angle": "IT, программирование, нейросети, автоматизация, айти-карьера"},
+    {"from": "10-25", "to": "10-31", "name": "Хэллоуин", "niches": ["mystic_stories", "what_if", "mind_facts"], "angle": "мистика, страхи, паранормальное, психология страха"},
+    {"from": "11-20", "to": "11-29", "name": "Чёрная пятница", "niches": ["money_facts", "business_stories", "psy_stories", "personal_brand"], "angle": "распродажи, импульсивные покупки, маркетинговые уловки, как не слить деньги"},
+    {"from": "12-15", "to": "12-25", "name": "Предновогодняя суета", "niches": ["money_facts", "psy_stories", "business_stories"], "angle": "подготовка к НГ, траты, стресс, подведение итогов"}
+  ]
+}

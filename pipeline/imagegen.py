@@ -165,23 +165,37 @@ def _nvidia_flux_image(prompt: str, out: pathlib.Path, seed: int = 0) -> bool:
     return False
 
 
+# Модели Pollinations в порядке предпочтения по АНАТОМИИ (ресёрч 2026-07: nanobanana=Gemini
+# Nano Banana даёт лучшие руки/лица; flux — базовый фолбэк). Пробуем по очереди до первого успеха.
+_POLLI_MODELS = ("nanobanana", "flux")
+
+
 def _pollinations_image(prompt: str, out: pathlib.Path, seed: int = 0) -> bool:
-    """Бесплатно без ключа (fair use). FLUX, вертикаль 1080x1920."""
+    """Бесплатно без ключа (fair use). Вертикаль 1080x1920. Пробует модели с лучшей анатомией
+    (nanobanana) → базовую (flux). _too_dark/битый ответ одной модели → следующая."""
     q = urllib.parse.quote(prompt)
-    params = urllib.parse.urlencode({"width": core.W, "height": core.H, "model": "flux",
-                                     "seed": seed, "nologo": "true", "private": "true"})
     sk = os.environ.get("POLLINATIONS_API_KEY", "").strip()
     headers = {"User-Agent": "content-factory"}
     if sk:
         headers["Authorization"] = f"Bearer {sk}"
-    url = f"https://image.pollinations.ai/prompt/{q}?{params}"
-    req = urllib.request.Request(url, headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=120) as r, out.open("wb") as f:
-            f.write(r.read())
-        return out.stat().st_size > 5000
-    except Exception:  # noqa: BLE001
-        return False
+    # nanobanana (лучшие руки) анонимно 500-ит → пробуем его только при наличии ключа; иначе сразу flux
+    models = _POLLI_MODELS if sk else ("flux",)
+    for model in models:
+        params = urllib.parse.urlencode({"width": core.W, "height": core.H, "model": model,
+                                         "seed": seed, "nologo": "true", "private": "true"})
+        url = f"https://image.pollinations.ai/prompt/{q}?{params}"
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=120) as r:
+                data = r.read()
+            if len(data) <= 5000:
+                continue
+            out.write_bytes(data)
+            if _too_dark(out):        # чёрный/битый кадр → пробуем следующую модель
+                continue
+            return True
+        except Exception:  # noqa: BLE001
+            continue
+    return False
 
 
 def generate_raw(prompt: str, out: pathlib.Path, seed: int = 0) -> str | None:
