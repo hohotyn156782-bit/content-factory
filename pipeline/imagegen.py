@@ -106,9 +106,13 @@ def _gemini_image(prompt: str, out: pathlib.Path) -> bool:
         cid = "g:" + _kh(key)
         if _COOLDOWN.get(cid, 0) > now:
             continue
+        # ключи формата `AQ.…` требуют заголовок x-goog-api-key (старый ?key= → 401).
+        # ПРИМ.: генерация картинок у Gemini платная (free-tier limit:0) — этот путь обычно
+        # отваливается по квоте 429 и уходит в фолбэк NVIDIA/Pollinations. Auth чиним для честной ошибки.
         url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-               f"{GEMINI_IMG_MODEL}:generateContent?key={key}")
-        req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+               f"{GEMINI_IMG_MODEL}:generateContent")
+        req = urllib.request.Request(url, data=body,
+                                     headers={"Content-Type": "application/json", "x-goog-api-key": key})
         try:
             r = json.loads(urllib.request.urlopen(req, timeout=90).read())
             parts = r.get("candidates", [{}])[0].get("content", {}).get("parts", [])

@@ -31,11 +31,26 @@ def _ensure_disk() -> None:
 
 
 def _pick_music() -> str | None:
+    """Трек фоновой музыки из банка (если наполнен; по умолчанию папка пуста — музыка выкл,
+    см. pipeline/music.py про Content ID). РОТАЦИЯ: не один и тот же трек на каждом ролике —
+    счётчик в state-файле банка перебирает треки по кругу (однообразный фон снижает удержание)."""
     if not core.MUSIC_DIR.exists():
         return None
     tracks = sorted([p for p in core.MUSIC_DIR.iterdir()
                      if p.suffix.lower() in (".mp3", ".m4a", ".wav", ".aac", ".ogg")])
-    return str(tracks[0]) if tracks else None
+    if not tracks:
+        return None
+    ctr = core.MUSIC_DIR / ".rotation"          # без аудио-суффикса → не попадёт в список треков
+    try:
+        idx = int(ctr.read_text().strip()) if ctr.exists() else 0
+    except Exception:  # noqa: BLE001
+        idx = 0
+    pick = tracks[idx % len(tracks)]
+    try:
+        ctr.write_text(str((idx + 1) % 100000))
+    except Exception:  # noqa: BLE001
+        pass
+    return str(pick)
 
 
 # Спеки формата под площадку (v2: раздельные ролики). target ≈ длина озвучки (~2.3 слова/сек).
@@ -230,6 +245,16 @@ def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None 
         core.log_error("build._build_once", e, niche=niche_id, dir=out_dir.name)
         shutil.rmtree(out_dir, ignore_errors=True)
         raise
+    # Пре-модерация бан-риска: high → складываем в QA-гейт (не публикуем) + сигнал. Дешёвый
+    # текстовый проход = страховка аккаунтов (один бан убивает канал). Fail-open в самом ban_risk.
+    ban = scriptmod.ban_risk(sc, niche)
+    if ban.get("risk") == "high":
+        qa_result["ok"] = False
+        qa_result["issues"] = list(qa_result.get("issues", [])) + \
+            [f"[бан-риск] {ban.get('reason', '')} ({', '.join(ban.get('categories', []))})"]
+        core.log(f"Бан-риск HIGH — публикация заблокирована: {ban.get('reason', '')}", level="warn",
+                 niche=niche_id, dir=out_dir.name, categories=ban.get("categories", []))
+
     if not qa_result["ok"]:
         core.log(f"QA не пройден: {qa_result['issues']}", level="warn", niche=niche_id, dir=out_dir.name)
 
@@ -260,6 +285,7 @@ def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None 
         "created": core._now().isoformat(),
         "posted": {},
         "qa": qa_result,
+        "ban_risk": ban,
         "virality": sc.get("virality", {}),
         "hook": sc.get("hook", ""),                      # для обложки (короткий хук-текст)
         "thumb_text": sc.get("thumb_text", ""),          # приоритетный текст обложки (законченная фраза)
@@ -267,12 +293,17 @@ def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None 
         "title_variants": sc.get("title_variants", []),
     }
 
-    # авто-обложка (кадр ролика + крупный заголовок) — для превью/YouTube. Не критично.
+    # авто-обложка с ВЫБОРОМ по кликабельности (Gemini-зрение): несколько вариантов → лучший +
+    # Vision-QA читаемости. Фолбэк на один вариант, если зрение недоступно. Не критично для видео.
     try:
         from pipeline import thumbnail
-        thumb = thumbnail.make_for_meta(str(video), meta, out_dir / "thumb.jpg")
+        thumb = thumbnail.make_best_for_meta(str(video), meta, out_dir / "thumb.jpg")
         if thumb:
             meta["thumbnail"] = str(thumb)
+        tq = meta.get("thumb_qa") or {}
+        if tq.get("readable") is False:                  # обложка нечитаема — сигнал, но НЕ блок публикации
+            core.log(f"обложка нечитаема (Vision-QA): {tq.get('issue', '')}", level="warn",
+                     niche=niche_id, dir=out_dir.name)
     except Exception as e:  # noqa: BLE001
         core.log_error("thumbnail", e)
 

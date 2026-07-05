@@ -461,6 +461,101 @@ def make_for_meta(video_path: str, meta: dict, out_path: pathlib.Path) -> pathli
     return make_thumbnail(video_path, thumb_text, out_path, niche=niche, ai_bg=ai_bg)
 
 
+def _thumb_texts(meta: dict, primary: str) -> list[str]:
+    """Кандидаты текста обложки: приоритетный хук + альтернативы (варианты хука/заголовка).
+    Уникальные, коротко-первыми (короткий крупный текст на обложке кликабельнее)."""
+    cands = [primary]
+    for t in (meta.get("hook_variants") or []):
+        cands.append((t or "").strip())
+    cands.append((meta.get("hook", "") or "").strip())
+    for t in (meta.get("title_variants") or []):
+        cands.append((t or "").strip())
+    seen, out = set(), []
+    for c in cands:
+        c = _strip_dangling(c)
+        k = c.lower()
+        if c and k not in seen and 3 <= len(c) <= 60:
+            seen.add(k); out.append(c)
+    return out
+
+
+def make_best_for_meta(video_path: str, meta: dict, out_path: pathlib.Path) -> pathlib.Path | None:
+    """Авто-ВЫБОР обложки: генерим несколько вариантов (разный текст/сид), Gemini-зрение выбирает
+    самый кликабельный и проверяет читаемость (Vision-QA обложки). Результат — в out_path;
+    вердикт зрения кладём в meta['thumb_qa']. Fallback → обычная make_for_meta (один вариант).
+    Гейт CF_THUMB_SELECT (по умолч. вкл); при отсутствии Gemini/PIL — тихий фолбэк."""
+    if os.environ.get("CF_THUMB_SELECT", "1").strip().lower() in ("0", "false", "no", "off"):
+        return make_for_meta(video_path, meta, out_path)
+    try:
+        from pipeline import vision
+    except Exception:  # noqa: BLE001
+        return make_for_meta(video_path, meta, out_path)
+    if not vision.keys():
+        return make_for_meta(video_path, meta, out_path)
+
+    out_path = pathlib.Path(out_path)
+    primary = _thumb_hook(meta, (meta.get("captions", {}).get("youtube", {}) or {}).get("title", "")
+                          or meta.get("topic", ""))
+    texts = _thumb_texts(meta, primary)
+    n = max(2, min(3, int(os.environ.get("THUMB_SELECT_N", "2") or 2)))
+    texts = texts[:n]
+    if len(texts) < 2:                                   # нечего выбирать — обычный путь
+        return make_for_meta(video_path, meta, out_path)
+
+    niche = None
+    if meta.get("niche"):
+        try:
+            niche = core.get_niche(meta["niche"])
+        except Exception:  # noqa: BLE001
+            niche = None
+    ai_bg = os.environ.get("THUMB_AI_BG", "1").strip().lower() not in ("0", "false", "no", "off", "")
+
+    variants = []
+    for i, txt in enumerate(texts):
+        cand = out_path.with_name(out_path.stem + f"_v{i}.jpg")
+        seed = int(hashlib.md5((txt + str(i)).encode()).hexdigest()[:6], 16)
+        res = make_thumbnail(video_path, txt, cand, niche=niche, ai_bg=ai_bg, seed=seed)
+        if res:
+            variants.append({"i": i, "text": txt, "path": pathlib.Path(res)})
+    if not variants:
+        return make_for_meta(video_path, meta, out_path)
+    if len(variants) == 1:                               # сгенерился только один — берём его
+        chosen = variants[0]["path"]
+        chosen.replace(out_path)
+        return out_path
+
+    prompt = (
+        "Это варианты обложки (превью) для вертикального видео Shorts/Reels под русскую аудиторию. "
+        "Выбери САМЫЙ кликабельный: крупный читаемый текст, эмоция/интрига, контраст, нет визуальных "
+        "дефектов (кривые лица/руки, кракозябры). Верни СТРОГО JSON: "
+        '{"best": <номер лучшего, 0-based>, "readable": true|false, "click_score": 1-10, '
+        '"issue": "кратко о проблеме лучшего варианта или пусто"}.')
+    verdict = vision.ask_json(prompt, [v["path"] for v in variants], max_tokens=300)
+
+    best_i = 0
+    if isinstance(verdict, dict) and isinstance(verdict.get("best"), int) \
+            and 0 <= verdict["best"] < len(variants):
+        best_i = verdict["best"]
+    chosen = variants[best_i]["path"]
+    # чистим проигравшие
+    for v in variants:
+        if v["path"] != chosen:
+            v["path"].unlink(missing_ok=True)
+    chosen.replace(out_path)
+
+    meta["thumb_qa"] = {
+        "chosen_text": variants[best_i]["text"],
+        "variants": len(variants),
+        "click_score": (verdict or {}).get("click_score"),
+        "readable": (verdict or {}).get("readable"),
+        "issue": (verdict or {}).get("issue", ""),
+    }
+    core.log(f"обложка: выбран вариант {best_i}/{len(variants)} "
+             f"(score={(verdict or {}).get('click_score')}) «{variants[best_i]['text'][:40]}»",
+             level="info")
+    return out_path
+
+
 if __name__ == "__main__":
     core.load_local_secrets()
     if len(sys.argv) >= 3:

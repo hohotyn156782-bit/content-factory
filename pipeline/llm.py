@@ -111,7 +111,12 @@ def _call(p: dict, key: str, msgs: list[dict], json_mode: bool, max_tokens: int,
         raise RuntimeError(f"HTTP {e.code}: {body[:110]}")
     except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
         raise _TransientError(str(e)[:80])
-    return j["choices"][0]["message"]["content"].strip()
+    ch = (j.get("choices") or [{}])[0]
+    content = (ch.get("message") or {}).get("content")
+    if not content:  # «думающие» модели (Gemini 2.5 и др.) могут вернуть пустой текст, съев лимит на reasoning
+        fr = ch.get("finish_reason") or "empty"
+        raise _TransientError(f"пустой ответ (finish_reason={fr})")
+    return content.strip()
 
 
 def chat(system: str, user: str, json_mode: bool = True, max_tokens: int = 900,

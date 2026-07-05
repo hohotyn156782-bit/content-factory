@@ -937,6 +937,43 @@ def validate(sc: dict) -> tuple[bool, str]:
     return True, "ok"
 
 
+_BANRISK_CATS = ("медобещания/диагнозы/лечение; политика/разжигание вражды; 18+/сексуальный контент; "
+                 "насилие/жестокость/шок; наркотики; оружие; азартные игры как гарантированный доход; "
+                 "финансовые ГАРАНТИИ дохода/схемы обогащения; самоповреждение; опасные для жизни советы; "
+                 "явный копирайт (узнаваемые бренды/персонажи/треки); дезинформация")
+
+
+def ban_risk(sc: dict, niche: dict | None = None) -> dict:
+    """LLM-модерация сценария на риск блокировки/демонетизации/бана аккаунта площадкой.
+    Возвращает {"risk":"low|medium|high","categories":[...],"reason":"..."}. Гейт CF_BANRISK (по умолч. вкл).
+    Fail-OPEN: при недоступности LLM → risk=low (сбой модерации НЕ должен рубить нормальный контент).
+    Один бан убивает канал — дешёвый текстовый проход окупается страховкой аккаунтов для 24/7."""
+    if os.environ.get("CF_BANRISK", "1").strip().lower() in ("0", "false", "no", "off"):
+        return {"risk": "low", "categories": [], "reason": "гейт выключен"}
+    text = " ".join([sc.get("hook", ""), sc.get("topic", "")]
+                    + [s.get("text", "") for s in sc.get("segments", [])]
+                    + [sc.get("outro", "")]).strip()[:2500]
+    if not text:
+        return {"risk": "low", "categories": [], "reason": "пустой текст"}
+    system = (
+        "Ты строгий, но адекватный модератор коротких видео (YouTube Shorts / TikTok / Reels / VK Клипы). "
+        "Оцени РИСК блокировки ролика, демонетизации или бана аккаунта за ТЕКСТ. Категории риска: "
+        + _BANRISK_CATS + ". Образовательные факты, история, наука, психология, лайфхаки, бизнес-истории — "
+        "это НОРМА (low), даже если тема серьёзная. medium — пограничное (упоминание без пропаганды). "
+        "high — ТОЛЬКО явное нарушение правил площадок (пропаганда, инструкция вреда, гарантия дохода, 18+). "
+        'Верни СТРОГО JSON: {"risk":"low|medium|high","categories":["..."],"reason":"кратко почему"}.')
+    try:
+        d = _parse(_groq(system, "Текст ролика:\n" + text, temp=0.2, max_tokens=200, json_mode=True))
+        risk = str(d.get("risk", "low")).lower().strip()
+        if risk not in ("low", "medium", "high"):
+            risk = "low"
+        cats = [str(c) for c in (d.get("categories") or [])][:6]
+        return {"risk": risk, "categories": cats, "reason": str(d.get("reason", ""))[:200]}
+    except Exception as e:  # noqa: BLE001 — модерация упала → fail-open (не блокируем)
+        _core.log_error("script.ban_risk", e)
+        return {"risk": "low", "categories": [], "reason": "LLM недоступен (fail-open)"}
+
+
 def to_chunks(script: dict) -> list[dict]:
     """Развернуть сценарий в линейный список озвучиваемых кусков с ролями и broll-запросами."""
     chunks = []

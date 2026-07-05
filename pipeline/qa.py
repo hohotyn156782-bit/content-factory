@@ -210,10 +210,15 @@ def check_visual(video: str, vdur: float, workdir: pathlib.Path) -> dict:
     def _ask(key: str, payload: bytes) -> str:
         """Один запрос к ключу. Возвращает извлечённый text (может быть пустым).
         Сетевые/429/исключения запроса пробрасываются наружу (трактуются как промах ключа)."""
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{VISION_MODEL}:generateContent?key={key}"
-        req = urllib.request.Request(url, data=payload, headers={"Content-Type": "application/json"})
+        # ВАЖНО: новые ключи Google формата `AQ.…` работают ТОЛЬКО через заголовок x-goog-api-key.
+        # Старый `?key=` даёт им 401 ACCESS_TOKEN_TYPE_UNSUPPORTED → визуальный QA молча отваливался.
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{VISION_MODEL}:generateContent"
+        req = urllib.request.Request(url, data=payload,
+                                     headers={"Content-Type": "application/json", "x-goog-api-key": key})
         r = json.loads(urllib.request.urlopen(req, timeout=90).read())
-        return r["candidates"][0]["content"]["parts"][0]["text"]
+        cand = (r.get("candidates") or [{}])[0]
+        parts = (cand.get("content") or {}).get("parts") or [{}]
+        return parts[0].get("text", "") or ""
 
     for key in keys:
         # 1) Сетевой слой: пустой ответ / исключение запроса / 429 → fail-open, continue к след. ключу.
