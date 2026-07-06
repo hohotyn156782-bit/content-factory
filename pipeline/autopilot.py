@@ -248,9 +248,15 @@ def queue_video(niche_id: str, target: str) -> list:
     extras = {"thumb": meta.get("thumbnail"),
               "title_variants": meta.get("title_variants", []),
               "description": (meta.get("captions", {}).get("youtube", {}) or {}).get("description", "")}
-    ok, info = tg_queue.send_item(target, meta["video"], title, tags, _eng_question(sc),
-                                  channel=core.get_niche(niche_id).get("title", ""), niche=niche_id,
-                                  extras=extras)
+    # ОБА видео (youtube и tiktok) шлём ОБОИМ админам (Паша + Даша)
+    chats = tg_queue.admin_chats() or [""]   # [""] → send_item сам возьмёт дефолт по target
+    deliveries = [tg_queue.send_item(target, meta["video"], title, tags, _eng_question(sc),
+                                     channel=core.get_niche(niche_id).get("title", ""),
+                                     niche=niche_id, extras=extras, chat_override=ch)
+                  for ch in chats]
+    ok = any(d[0] for d in deliveries)
+    info = "; ".join(f"{ch or 'def'}:{'ok' if d[0] else d[1]}"
+                     for ch, d in zip(chats, deliveries)) or "нет адресатов"
     # в леджер — как «в очереди» (URL появится позже, когда владелец выложит вручную)
     _ledger(target, niche_id, sc.get("topic", ""),
             [{"platform": target, "account": "tg-queue", "ok": ok, "url": None, "ref": None,

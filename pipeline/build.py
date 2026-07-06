@@ -355,7 +355,7 @@ def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None 
 
 
 def build_video(niche_id: str, topic: str | None = None, broll_mode: str | None = None,
-                max_attempts: int = 2, serial: dict | None = None, platform: str | None = None) -> dict:
+                max_attempts: int = 4, serial: dict | None = None, platform: str | None = None) -> dict:
     """Собрать ролик с авто-регенерацией: если QA не прошёл — пересобрать (до max_attempts).
     Неудачные попытки удаляются; на последней — отдаём как есть (qa.ok=False, не публикуется).
     serial — серийный эпизод (часть 1/2); platform — формат/стиль под площадку (youtube/tiktok/ig_vk)."""

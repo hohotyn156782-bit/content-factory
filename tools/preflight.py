@@ -19,8 +19,8 @@ def check() -> list[dict]:
     """Вернуть список проблем: [{platform, account, error}]. Пусто = всё живо."""
     core.load_local_secrets()
     from panel import db
-    from adapters import instagram, threads
-    verifiers = {"instagram": instagram.verify, "threads": threads.verify}
+    from adapters import instagram, threads, vk_video
+    verifiers = {"instagram": instagram.verify, "threads": threads.verify, "vk": vk_video.verify}
     problems = []
     for b in db.list_bundles():
         if b.get("status", "active") != "active":

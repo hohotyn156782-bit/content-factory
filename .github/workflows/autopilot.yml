@@ -5,7 +5,7 @@ name: autopilot
 #   11:00 UTC (14 МСК) → youtube : видео → TG Паше (ручная выкладка)
 #   14:00 UTC (17 МСК) → text    : текст-история-сериал → Threads + VK сообщество (авто)
 #   17:00 UTC (20 МСК) → tiktok  : видео → TG Даше (ручная выкладка)
-# Сейчас крон ЗАКОММЕНТИРОВАН — тест через workflow_dispatch. Включить после успешного теста.
+# Крон ВКЛЮЧЁН 2026-07-06 — публикации ежедневно по слотам ниже (+ ручной workflow_dispatch).
 
 on:
   workflow_dispatch:
@@ -18,11 +18,11 @@ on:
         description: "ниша (пусто = все подходящие)"
         required: false
         default: ""
-  # schedule:
-  #   - cron: "0 8 * * *"    # ig_vk
-  #   - cron: "0 11 * * *"   # youtube
-  #   - cron: "0 14 * * *"   # text
-  #   - cron: "0 17 * * *"   # tiktok
+  schedule:
+    - cron: "0 8 * * *"    # ig_vk   (11:00 МСК)
+    - cron: "0 11 * * *"   # youtube (14:00 МСК) → TG Паше+Даше
+    - cron: "0 14 * * *"   # text    (17:00 МСК)
+    - cron: "0 17 * * *"   # tiktok  (20:00 МСК) → TG Паше+Даше
 
 concurrency:
   group: autopilot

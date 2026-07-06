@@ -68,6 +68,31 @@ def _user_token_for(group_id: str) -> str | None:
     return None
 
 
+def verify(account: dict | None = None) -> tuple[bool, str]:
+    """Предполётная проверка готовности VK-аккаунта к автопостингу видео (для tools/preflight):
+      (1) community-токен из secret_ref жив (groups.getById),
+      (2) есть VK user-токен с правами админа группы — без него video.save невозможен
+          (главная тихая причина, по которой VK-видео перестаёт публиковаться).
+    Возвращает (ok, msg) — совместимо с instagram.verify / threads.verify."""
+    account = account or {}
+    gid = str(account.get("ext_id", "")).strip().lstrip("-")
+    if not gid:
+        return False, "нет ext_id (owner_id) у VK-аккаунта"
+    ref = (account.get("secret_ref") or "").strip()
+    ctok = os.environ.get(ref, "").strip() if ref else ""
+    if ref and not ctok:
+        return False, f"нет community-токена {ref} в env"
+    if ctok:
+        resp, err = _call("groups.getById", ctok, group_id=gid)
+        if err:
+            return False, f"community-токен не работает: {err}"
+    # user-токен-админ нужен ТОЛЬКО для видео (video.save). Текстовые VK-аккаунты постят
+    # community-токеном (wall.post) — им админ-токен не требуется, не флагаем ложно.
+    if (account.get("kind") or "").strip().lower() == "video" and not _user_token_for(gid):
+        return False, "нет VK user-токена-админа группы (video.save невозможен)"
+    return True, "ok"
+
+
 def _first_comment(token: str, owner_id: str, post_id, message: str) -> None:
     """Авто-первый-коммент под свежим постом: буст вовлечённости (алгоритм VK любит комменты) +
     воронка в TG-канал. Текст — из env VK_FIRST_COMMENT (можно с {tg}). Best-effort, пост не роняем."""

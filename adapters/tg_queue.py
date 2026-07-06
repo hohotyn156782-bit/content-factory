@@ -30,6 +30,18 @@ def _chat(target: str) -> str:
             or _ADMINS.get(target, "")).strip()
 
 
+def admin_chats() -> list[str]:
+    """Оба админа получают ОБА выхода (и YouTube, и TikTok): Паша + Даша. Дедуп, без пустых.
+    env-переопределение: TG_QUEUE_CHAT_YOUTUBE / _TIKTOK, плюс TG_QUEUE_CHAT_ALL (через запятую)."""
+    extra = [c.strip() for c in os.environ.get("TG_QUEUE_CHAT_ALL", "").split(",") if c.strip()]
+    out: list[str] = []
+    for c in [_chat("youtube"), _chat("tiktok"), *extra]:
+        c = (c or "").strip()
+        if c and c not in out:
+            out.append(c)
+    return out
+
+
 def _req(tok: str, method: str, *, data=None, files=None, attempts: int = 3):
     """POST в Bot API с ретраями на 429 (respect retry_after) и 5xx/сеть. Возвращает dict-ответ Telegram."""
     last = {"ok": False, "description": "нет попыток"}
@@ -61,7 +73,7 @@ def _req(tok: str, method: str, *, data=None, files=None, attempts: int = 3):
 
 def send_item(target: str, video_path: str, title: str, tags: str,
               first_comment: str, channel: str = "", niche: str = "",
-              extras: dict | None = None) -> tuple[bool, str]:
+              extras: dict | None = None, chat_override: str = "") -> tuple[bool, str]:
     """target: 'youtube' (→Паше) | 'tiktok' (→Даше). Шлёт видео + копию + кнопку. Возвращает (ok, info).
     Успех = доставлена КОПИЯ С КНОПКОЙ (без неё трекинг готовности невозможен). Видео — best-effort:
     при >49МБ файл в TG не влезает → заливаем на media_host и даём ссылку в копии.
@@ -71,7 +83,7 @@ def send_item(target: str, video_path: str, title: str, tags: str,
     tok = _token()
     if not tok:
         return False, "нет TG_QUEUE_BOT_TOKEN"
-    chat = _chat(target)
+    chat = (chat_override or _chat(target)).strip()
     if not chat:
         return False, f"нет chat_id для {target}"
     head = {"youtube": "▶️ YouTube Shorts", "tiktok": "🎵 TikTok"}.get(target, target.upper())
