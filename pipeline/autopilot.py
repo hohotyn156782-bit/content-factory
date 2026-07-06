@@ -283,7 +283,10 @@ def run(output: str, niche: str | None = None) -> list:
     # (сериалы/история тем/posted.json) и назавтра дубли. Дефолт 90 мин при лимите джоба 120.
     import os
     import time
-    budget_s = float(os.environ.get("CF_RUN_BUDGET_S", "5400") or 5400)
+    try:
+        budget_s = float(os.environ.get("CF_RUN_BUDGET_S") or 5400)
+    except ValueError:                    # мусор в env не должен ронять весь автопилот
+        budget_s = 5400.0
     t0 = time.time()
     allr, skipped = [], []
     for n in niches:
