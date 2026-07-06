@@ -157,6 +157,11 @@ def _qa_alert(output: str, niche_id: str, qa: dict) -> None:
 def post_ig_vk(niche_id: str) -> list:
     """Видео (формат ig_vk) → Instagram Reels + VK Клипы."""
     accs = _accounts(niche_id, ("instagram", "vk"))
+    # VK-клипы льём только в video-kind сообщества. У text-kind групп video.save недоступен
+    # (постят wall-текстом, их обслуживает post_text) → без фильтра туда летит видео и гарантированно
+    # падает в None. IG-аккаунты kind не касается.
+    accs = [a for a in accs
+            if a.get("platform") != "vk" or (a.get("kind") or "").strip().lower() != "text"]
     if not accs:
         return []
     res = builder.build_video(niche_id, platform="ig_vk")
@@ -273,8 +278,18 @@ def run(output: str, niche: str | None = None) -> list:
     niches = [niche] if niche else [n["id"] for n in core.load_niches(only_enabled=True)]
     if output in ("youtube", "tiktok"):
         niches = [n for n in niches if core.get_niche(n).get("has_yt_tiktok")]
-    allr = []
+    # Бюджет по времени: не начинать новую нишу под конец лимита GitHub (timeout-minutes).
+    # Иначе джоб убивают ПОСРЕДИ сборки → шаг commit-back не успевает сохранить состояние
+    # (сериалы/история тем/posted.json) и назавтра дубли. Дефолт 90 мин при лимите джоба 120.
+    import os
+    import time
+    budget_s = float(os.environ.get("CF_RUN_BUDGET_S", "5400") or 5400)
+    t0 = time.time()
+    allr, skipped = [], []
     for n in niches:
+        if time.time() - t0 > budget_s:
+            skipped.append(n)
+            continue
         print(f"— {output} · {n} —")
         if already_posted(output, n):
             print(f"  ⏭ уже опубликовано сегодня ({output}/{n}) — пропуск (анти-дубль)")
@@ -289,6 +304,15 @@ def run(output: str, niche: str | None = None) -> list:
         except Exception as e:  # noqa: BLE001
             print(f"  ❌ {n}: {str(e)[:160]}")
             core.log_error(f"autopilot.{output}", e, niche=n)
+    if skipped:
+        # НЕ молча: явно сообщаем, до каких ниш не дошли в бюджете времени (получат слот в след. запуске).
+        print(f"⏳ бюджет времени исчерпан — пропущено ниш: {len(skipped)}: {', '.join(skipped)}")
+        try:
+            import reporter
+            reporter.critical(f"⏳ Автопилот {output}: не хватило времени на {len(skipped)} ниш "
+                              f"({', '.join(skipped)}). Пойдут в следующий запуск.")
+        except Exception:  # noqa: BLE001
+            pass
     okn = sum(1 for _, ok, _ in allr if ok)
     try:
         import reporter

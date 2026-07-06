@@ -32,8 +32,9 @@ jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    permissions:
+      contents: write   # commit-back state/ штатным github.token (сериалы/история/posted.json)
     env:
-      GITHUB_TOKEN: ${{ secrets.MEDIA_PAT }}   # media_host пушит видео в cf-media → raw URL для IG/Threads
       PYTHONUNBUFFERED: "1"
       CF_DATA_ROOT: ${{ github.workspace }}/state/cfdata   # персист history.jsonl между ранами (антидубль тем)
     steps:
@@ -72,6 +73,7 @@ jobs:
         env:
           OUT: ${{ steps.pick.outputs.out }}
           NICHE: ${{ github.event.inputs.niche }}
+          GITHUB_TOKEN: ${{ secrets.MEDIA_PAT }}   # media_host заливает mp4 в cf-media → raw URL для IG/Threads
         run: |
           mkdir -p "$CF_DATA_ROOT"
           python3 factory.py v2 "$OUT" $NICHE

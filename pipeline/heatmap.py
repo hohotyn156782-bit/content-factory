@@ -11,6 +11,7 @@ pipeline/script.py — учимся у того, что УЖЕ удержало 
 Возвращаемый сид:
   {"peak_time", "peak_label", "title", "url", "duration", "source": "yt_heatmap"}
 """
+import os
 import re
 import sys
 import json
@@ -46,6 +47,19 @@ _FULL_OPTS = {
     "nocheckcertificate": True,
     "ignoreerrors": True,
 }
+
+
+def _yt_available() -> bool:
+    """Стоит ли вообще дёргать yt_dlp. На GitHub Actions YouTube отдаёт бот-капчу
+    ('Sign in to confirm you're not a bot') и extract может зависнуть на отдельном видео
+    (наблюдали висяк ~75 мин → джоб убивался по 2-часовому лимиту). На CI heatmap-сид всё
+    равно не придёт, поэтому пропускаем сеть и отдаём фолбэк мгновенно. Можно принудительно
+    выключить где угодно через CF_NO_YTDLP=1."""
+    if os.environ.get("CF_NO_YTDLP", "").strip().lower() in ("1", "true", "yes"):
+        return False
+    if os.environ.get("GITHUB_ACTIONS", "").strip().lower() == "true":
+        return False
+    return True
 
 
 def _chapter_label(chapters, peak_time: float) -> str:
@@ -107,6 +121,8 @@ def hook_seed(query: str, lang: str = "ru", max_videos: int = 3) -> dict | None:
     """
     query = (query or "").strip()
     if not query:
+        return None
+    if not _yt_available():          # CI/принудительно выкл. → без сети, без риска зависнуть
         return None
     try:
         import yt_dlp  # ленивый импорт внешней либы
@@ -463,6 +479,9 @@ def viral_brief(niche_query: str, lang: str = "ru", n: int = 6, max_age_days: in
                     return {**empty, **cached}
     except Exception:  # noqa: BLE001 — кэш необязателен, идём в сеть
         pass
+
+    if not _yt_available():          # CI/принудительно выкл. → отдаём пустой бриф, не виснем на yt_dlp
+        return empty
 
     try:
         import yt_dlp
