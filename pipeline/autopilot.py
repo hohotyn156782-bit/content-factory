@@ -269,44 +269,128 @@ def queue_video(niche_id: str, target: str) -> list:
     return [(f"{target}/{niche_id}", ok, info)]
 
 
+# ───────── жёсткий стоп по времени на нишу + честная ротация ниш ─────────
+_CURSOR = _STATE / "niche_cursor.json"
+
+
+class _NicheTimeout(BaseException):
+    """Ниша превысила жёсткий лимит времени. Наследуем BaseException (а не Exception),
+    чтобы прервать нишу СКВОЗЬ внутренние `except Exception` сборки/публикации, которые иначе
+    проглотили бы обычное исключение и продолжили пересборку."""
+
+
+def _raise_niche_timeout(signum, frame):    # обработчик SIGALRM
+    raise _NicheTimeout()
+
+
+def _load_cursor() -> dict:
+    try:
+        return json.loads(_CURSOR.read_text(encoding="utf-8")) if _CURSOR.exists() else {}
+    except Exception as e:  # noqa: BLE001
+        core.log_error("autopilot._load_cursor", e)
+        return {}
+
+
+def _save_cursor(output: str, idx: int) -> None:
+    d = _load_cursor()
+    d[output] = int(idx)
+    try:
+        _atomic_write(_CURSOR, json.dumps(d, ensure_ascii=False, indent=2))
+    except Exception as e:  # noqa: BLE001
+        core.log_error("autopilot._save_cursor", e)
+
+
+def _rotate(items: list, start: int) -> list:
+    """Список, повёрнутый так, чтобы он начинался с индекса start (round-robin по запускам)."""
+    if not items:
+        return items
+    s = start % len(items)
+    return items[s:] + items[:s]
+
+
 def run(output: str, niche: str | None = None) -> list:
     fn = {"ig_vk": post_ig_vk, "text": post_text,
           "youtube": lambda n: queue_video(n, "youtube"),
           "tiktok": lambda n: queue_video(n, "tiktok")}.get(output)
     if not fn:
         raise SystemExit(f"неизвестный output: {output} (ig_vk|text|youtube|tiktok)")
-    niches = [niche] if niche else [n["id"] for n in core.load_niches(only_enabled=True)]
+    single = niche is not None
+    niches = [niche] if single else [n["id"] for n in core.load_niches(only_enabled=True)]
     if output in ("youtube", "tiktok"):
         niches = [n for n in niches if core.get_niche(n).get("has_yt_tiktok")]
+    # Честная ротация: раньше ниши шли фиксированным порядком, и хвост списка вечно отсекался
+    # бюджетом → одни и те же ниши (soviet_things/psy_stories) НИКОГДА не публиковались.
+    # Стартуем с той ниши, на которой прошлый запуск оборвался по бюджету — round-robin по
+    # запускам покрывает все ниши. Только для полного прогона (точечный --niche не двигает курсор).
+    start = _load_cursor().get(output, 0) if not single else 0
+    niches = _rotate(niches, start)
+
     # Бюджет по времени: не начинать новую нишу под конец лимита GitHub (timeout-minutes).
     # Иначе джоб убивают ПОСРЕДИ сборки → шаг commit-back не успевает сохранить состояние
-    # (сериалы/история тем/posted.json) и назавтра дубли. Дефолт 90 мин при лимите джоба 120.
+    # (сериалы/история тем/posted.json/курсор) и назавтра дубли. Дефолт 80 мин при лимите
+    # джоба 120: t0 стартует ПОСЛЕ setup (~3 мин), а после цикла ещё commit-back (~2 мин).
     import os
+    import signal
     import time
     try:
-        budget_s = float(os.environ.get("CF_RUN_BUDGET_S") or 5400)
+        budget_s = float(os.environ.get("CF_RUN_BUDGET_S") or 4800)
     except ValueError:                    # мусор в env не должен ронять весь автопилот
-        budget_s = 5400.0
+        budget_s = 4800.0
+    # Жёсткий лимит на ОДНУ нишу: QA-трэшинг (пересборка до 4× при браке AI-картинок) или
+    # зависшая сеть не должны съедать весь джоб и ронять его в timeout-minutes, голодя остальные
+    # ниши. 25 мин при бюджете 80 → худший старт 80-й мин + 25 = 105 + setup(~3) + commit-back(~2)
+    # ≈ 110 < 120, есть запас. Работает только в главном потоке на Unix (CI = ubuntu).
+    try:
+        niche_cap_s = max(0, int(float(os.environ.get("CF_NICHE_CAP_S") or 1500)))
+    except ValueError:
+        niche_cap_s = 1500
+    use_alarm = niche_cap_s > 0 and hasattr(signal, "SIGALRM")
+
     t0 = time.time()
-    allr, skipped = [], []
+    allr, skipped, processed = [], [], 0
     for n in niches:
         if time.time() - t0 > budget_s:
             skipped.append(n)
             continue
+        processed += 1                    # ниша получила свой слот (пост/анти-дубль/ошибка) — курсор её минует
         print(f"— {output} · {n} —")
         if already_posted(output, n):
             print(f"  ⏭ уже опубликовано сегодня ({output}/{n}) — пропуск (анти-дубль)")
             continue
+        prev_handler, armed = None, False
+        if use_alarm:
+            try:
+                prev_handler = signal.signal(signal.SIGALRM, _raise_niche_timeout)
+                signal.alarm(niche_cap_s)
+                armed = True
+            except (ValueError, OSError):     # не главный поток → без жёсткого таймаута
+                armed = False
         try:
             rr = fn(n)
+            if armed:
+                signal.alarm(0)               # ниша собрана/опубликована — снимаем таймер до пост-обработки
             for lbl, ok, url in rr:
                 print(f"  {'✅' if ok else '❌'} {lbl}: {url}")
             allr += rr
             if any(ok for _, ok, _ in rr):     # хоть одна площадка успешна → метим день
                 _mark_posted(output, n)
+        except _NicheTimeout:
+            print(f"  ⏱ ниша {n} превысила лимит {niche_cap_s // 60} мин — прервана, идём дальше")
+            core.log_error(f"autopilot.{output}.niche_timeout",
+                           RuntimeError(f"{n} > {niche_cap_s}s (QA-трэшинг/зависание)"), niche=n)
         except Exception as e:  # noqa: BLE001
             print(f"  ❌ {n}: {str(e)[:160]}")
             core.log_error(f"autopilot.{output}", e, niche=n)
+        finally:
+            if armed:
+                signal.alarm(0)
+                try:
+                    signal.signal(signal.SIGALRM, prev_handler if prev_handler is not None else signal.SIG_DFL)
+                except (ValueError, OSError, TypeError):
+                    pass
+    # Курсор: следующий запуск начнёт с первой НЕобработанной (отсечённой бюджетом) ниши.
+    if not single and niches:
+        _save_cursor(output, (start + processed) % len(niches))
     if skipped:
         # НЕ молча: явно сообщаем, до каких ниш не дошли в бюджете времени (получат слот в след. запуске).
         print(f"⏳ бюджет времени исчерпан — пропущено ниш: {len(skipped)}: {', '.join(skipped)}")
