@@ -355,55 +355,87 @@ def _build_once(niche_id: str, topic: str | None = None, broll_mode: str | None 
 
 
 def build_video(niche_id: str, topic: str | None = None, broll_mode: str | None = None,
-                max_attempts: int = 4, serial: dict | None = None, platform: str | None = None) -> dict:
+                max_attempts: int = 2, serial: dict | None = None, platform: str | None = None) -> dict:
     """Собрать ролик с авто-регенерацией: если QA не прошёл — пересобрать (до max_attempts).
-    Неудачные попытки удаляются; на последней — отдаём как есть (qa.ok=False, не публикуется).
-    serial — серийный эпизод (часть 1/2); platform — формат/стиль под площадку (youtube/tiktok/ig_vk)."""
+    Если за все попытки визуальный QA так и не пройден, а брак ЧИСТО визуальный (AI-артефакты:
+    техника ок И бан-риск не high) — публикуем ЛУЧШИЙ из попыток (минимум дефектов), а не бросаем
+    нишу (решение владельца: «за 2 попытки не вышло — ставь лучший и позуй»). Технический брак
+    (нет звука/разрешение/фриз) и бан-риск НЕ форсим никогда. serial — эпизод; platform — формат."""
     import shutil
     core.cleanup_cache(max_age_days=7)          # подчищаем старый скачанный сток (анти-рост диска)
     core.cleanup_outputs(max_age_days=21)        # старые папки роликов/публикаций (анти-рост диска)
     core.cleanup_media(max_age_days=45)          # старые материалы для повторного монтажа (анти-рост диска)
-    last = None
+
+    def _release(r):
+        # освобождаем зарезервированную тему бракованной попытки — иначе ретрай/завтра словит
+        # СВОЙ же резерв как ложный дубль и не сможет взять тему
+        try:
+            from pipeline import topics_db
+            topics_db.release_topic(niche_id, r.get("meta", {}).get("topic", "")
+                                    or r.get("script", {}).get("topic", ""))
+        except Exception as e:  # noqa: BLE001
+            core.log_error("topics_db.release_topic", e)
+
+    def _commit(r):
+        # тему ОПУБЛИКОВАННОГО ролика фиксируем как built (антиповтор в будущем)
+        try:
+            from pipeline import topics_db
+            m = r["meta"]
+            topics_db.commit_topic(niche_id, m["topic"], lang=m.get("lang", "ru"),
+                                   dir=pathlib.Path(r["dir"]).name,
+                                   hook=r.get("script", {}).get("hook", ""),
+                                   virality=(m.get("virality", {}) or {}).get("score", 0))
+        except Exception as e:  # noqa: BLE001
+            core.log_error("topics_db.commit_topic", e)
+
+    def _visual_only(r):
+        # брак ТОЛЬКО визуальный: техника ок И бан-риск не high → вариант можно форс-публиковать
+        q = r.get("qa", {})
+        tech_ok = (q.get("technical") or {}).get("ok", True)
+        ban_high = (r.get("meta", {}).get("ban_risk") or {}).get("risk") == "high"
+        return tech_ok and not ban_high
+
+    best = best_score = last = None
     for attempt in range(max_attempts):
         res = _build_once(niche_id, topic=topic, broll_mode=broll_mode, serial=serial, platform=platform)
         if res["qa"]["ok"]:
-            # КОММИТ темы: переводим зарезервированную тему в status='built' (антиповтор в будущем).
-            # Коммитим ТОЛЬКО при успехе сборки (раньше record() звался безусловно).
-            try:
-                from pipeline import topics_db
-                m = res["meta"]
-                topics_db.commit_topic(niche_id, m["topic"], lang=m.get("lang", "ru"),
-                                       dir=pathlib.Path(res["dir"]).name,
-                                       hook=res.get("script", {}).get("hook", ""),
-                                       virality=(m.get("virality", {}) or {}).get("score", 0))
-            except Exception as e:  # noqa: BLE001
-                core.log_error("topics_db.commit_topic", e)
+            _commit(res)
             core.log(f"Готов ролик: {res['meta']['topic']}", niche=niche_id,
                      virality=res["meta"].get("virality", {}).get("score"),
                      attempt=attempt + 1, dir=pathlib.Path(res["dir"]).name)
+            for stale in (best, last):           # отложенные кандидаты (форс/тех-брак) больше не нужны:
+                if stale is not None:            # чистим ОБА, иначе утечка резерва темы + осиротевшая папка
+                    shutil.rmtree(stale["dir"], ignore_errors=True); _release(stale)
             return res
-        if attempt < max_attempts - 1:
-            shutil.rmtree(res["dir"], ignore_errors=True)   # выбрасываем брак, пробуем ещё раз
-            # освобождаем тему этой бракованной попытки — иначе ретрай с той же темой
-            # столкнётся со СВОИМ же резервом (ложный дубль) и не сможет её взять
-            try:
-                from pipeline import topics_db
-                topics_db.release_topic(niche_id, res.get("meta", {}).get("topic", "")
-                                        or res.get("script", {}).get("topic", ""))
-            except Exception as e:  # noqa: BLE001
-                core.log_error("topics_db.release_topic", e)
-        else:
-            last = res                                       # последняя — отдаём с пометкой
-            core.log(f"Ролик отдан с непройденным QA: {res['meta']['topic']}", level="warn",
-                     niche=niche_id, issues=res["qa"]["issues"], dir=pathlib.Path(res["dir"]).name)
-    # окончательный брак (все попытки исчерпаны, qa.ok=False) → освобождаем зарезервированную тему
-    if last is not None and not last["qa"]["ok"]:
-        try:
-            from pipeline import topics_db
-            topics_db.release_topic(niche_id, last.get("meta", {}).get("topic", "")
-                                    or last.get("script", {}).get("topic", ""))
-        except Exception as e:  # noqa: BLE001
-            core.log_error("topics_db.release_topic", e)
+        if _visual_only(res):                    # держим ЛУЧШИЙ (меньше визуальных дефектов) кандидат
+            score = len(((res["qa"].get("visual") or {}).get("issues")) or [])
+            if best is None or score < best_score:
+                if best is not None:
+                    shutil.rmtree(best["dir"], ignore_errors=True); _release(best)
+                best, best_score = res, score
+            else:
+                shutil.rmtree(res["dir"], ignore_errors=True); _release(res)
+        else:                                    # тех-брак/бан-риск — такой вариант не публикуем
+            if last is not None:
+                shutil.rmtree(last["dir"], ignore_errors=True); _release(last)
+            last = res
+    # QA не прошёл ни разу. Приоритет — форс-публикация лучшего «только визуальный брак».
+    if best is not None:
+        best["qa"]["ok"] = True                  # разрешаем публикацию (autopilot гейтит по qa.ok)
+        best["qa"]["forced"] = True              # честно помечаем: опубликовано несмотря на артефакты
+        _commit(best)
+        core.log(f"Форс-публикация лучшего из {max_attempts} (визуальные артефакты не исправлены): "
+                 f"{best['meta']['topic']}", level="warn", niche=niche_id,
+                 issues=best["qa"].get("issues"), dir=pathlib.Path(best["dir"]).name)
+        if last is not None:
+            shutil.rmtree(last["dir"], ignore_errors=True); _release(last)
+        return best
+    # форсить нечего (тех-брак/бан-риск во всех попытках) → не публикуем, как раньше
+    if last is not None:
+        _release(last)
+        core.log(f"Ролик отдан с непройденным QA (тех/бан — не форсим): {last['meta']['topic']}",
+                 level="warn", niche=niche_id, issues=last["qa"]["issues"],
+                 dir=pathlib.Path(last["dir"]).name)
     return last
 
 
