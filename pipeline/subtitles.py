@@ -134,11 +134,14 @@ def _group_phrases(words: list[dict], lo: int = 3, hi: int = 5) -> list[list[dic
     return out
 
 
+# WrapStyle: 0 (умный автоперенос), НЕ 2 (без переноса): караоке-фразы по 3-5 слов ALL CAPS
+# (кегль 92) не влезают в 1080px одной строкой и обрезались по обоим краям кадра. 0 переносит
+# длинную фразу на 2 строки в пределах MarginL/R. Popin (1-2 слова) короткий → не переносится.
 _HEADER = """[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
 PlayResY: 1920
-WrapStyle: 2
+WrapStyle: 0
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
