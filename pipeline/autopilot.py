@@ -155,8 +155,8 @@ def _qa_alert(output: str, niche_id: str, qa: dict) -> None:
 
 
 def post_ig_vk(niche_id: str) -> list:
-    """Видео (формат ig_vk) → Instagram Reels + VK Клипы."""
-    accs = _accounts(niche_id, ("instagram", "vk"))
+    """Видео (формат ig_vk) → Instagram Reels + VK Клипы + Threads (тем же роликом)."""
+    accs = _accounts(niche_id, ("instagram", "vk", "threads"))
     # VK-клипы льём только в video-kind сообщества. У text-kind групп video.save недоступен
     # (постят wall-текстом, их обслуживает post_text) → без фильтра туда летит видео и гарантированно
     # падает в None. IG-аккаунты kind не касается.
@@ -164,6 +164,9 @@ def post_ig_vk(niche_id: str) -> list:
             if a.get("platform") != "vk" or (a.get("kind") or "").strip().lower() != "text"]
     if not accs:
         return []
+    # Threads — последним: Meta качает mp4 по публичному https, и IG-адаптер к этому моменту
+    # уже залил файл на хостинг → переиспользуем его URL вместо второй заливки.
+    accs.sort(key=lambda a: a.get("platform") == "threads")
     res = builder.build_video(niche_id, platform="ig_vk")
     out_dir = pathlib.Path(res["dir"])
     meta = json.loads((out_dir / "meta.json").read_text(encoding="utf-8"))
@@ -171,12 +174,26 @@ def post_ig_vk(niche_id: str) -> list:
         _qa_alert("ig_vk", niche_id, res.get("qa") or {})
         return [(f"ig_vk/{niche_id}", False, "QA не пройден")]
     video = meta["video"]
-    r, led = [], []
+    r, led, pub_url = [], [], None
     for a in accs:
         p = a["platform"]
         if p == "instagram":
             from adapters import instagram
             ok, info = _retry_pub(instagram.publish, video, meta, a)
+            if ok and isinstance(info, dict) and str(info.get("url") or "").startswith("https://"):
+                pub_url = info["url"]
+        elif p == "threads":
+            from adapters import threads as th
+            try:
+                if not pub_url:
+                    from adapters import media_host
+                    pub_url = media_host.public_url(video)
+            except Exception as e:  # noqa: BLE001
+                ok, info = False, f"хостинг для Threads: {str(e)[:120]}"
+            else:
+                cap = ((meta.get("captions", {}).get("instagram", {}) or {}).get("caption")
+                       or meta.get("topic", ""))
+                ok, info = _retry_pub(th.publish_video, pub_url, cap, a)
         else:
             from adapters import vk_video
             ok, info = _retry_pub(vk_video.publish, video, meta, a)
@@ -269,8 +286,7 @@ def queue_video(niche_id: str, target: str) -> list:
     return [(f"{target}/{niche_id}", ok, info)]
 
 
-# ───────── жёсткий стоп по времени на нишу + честная ротация ниш ─────────
-_CURSOR = _STATE / "niche_cursor.json"
+# ───────── жёсткий стоп по времени на нишу + порядок ниш (давность → вес) ─────────
 
 
 class _NicheTimeout(BaseException):
@@ -283,29 +299,34 @@ def _raise_niche_timeout(signum, frame):    # обработчик SIGALRM
     raise _NicheTimeout()
 
 
-def _load_cursor() -> dict:
-    try:
-        return json.loads(_CURSOR.read_text(encoding="utf-8")) if _CURSOR.exists() else {}
-    except Exception as e:  # noqa: BLE001
-        core.log_error("autopilot._load_cursor", e)
-        return {}
+def _last_posted_day(output: str) -> dict:
+    """niche → день последней успешной публикации этого выхода (из леджера posts.jsonl)."""
+    out: dict = {}
+    if not _LEDGER.exists():
+        return out
+    for ln in _LEDGER.read_text(encoding="utf-8").splitlines():
+        if not ln.strip():
+            continue
+        try:
+            e = json.loads(ln)
+        except ValueError:
+            continue
+        if e.get("output") != output or not e.get("ok") or not e.get("niche"):
+            continue
+        day = str(e.get("ts") or "")[:10]
+        if day > out.get(e["niche"], ""):
+            out[e["niche"]] = day
+    return out
 
 
-def _save_cursor(output: str, idx: int) -> None:
-    d = _load_cursor()
-    d[output] = int(idx)
-    try:
-        _atomic_write(_CURSOR, json.dumps(d, ensure_ascii=False, indent=2))
-    except Exception as e:  # noqa: BLE001
-        core.log_error("autopilot._save_cursor", e)
-
-
-def _rotate(items: list, start: int) -> list:
-    """Список, повёрнутый так, чтобы он начинался с индекса start (round-robin по запускам)."""
-    if not items:
-        return items
-    s = start % len(items)
-    return items[s:] + items[:s]
+def _order_niches(output: str, ids: list) -> list:
+    """Порядок обработки ниш: сперва давность (кто дольше не публиковался — анти-голодание,
+    роль прежнего round-robin-курсора), при равной давности — вес ниши из аналитики
+    (data/niche_weights.json: что реально набирает просмотры). Бюджет времени отсекает
+    ХВОСТ списка → в хвост попадают слабые по метрикам ниши, а не случайные."""
+    from pipeline import analytics
+    last = _last_posted_day(output)
+    return sorted(ids, key=lambda n: (last.get(n, ""), -analytics.weight_for(n), n))
 
 
 def run(output: str, niche: str | None = None) -> list:
@@ -318,12 +339,11 @@ def run(output: str, niche: str | None = None) -> list:
     niches = [niche] if single else [n["id"] for n in core.load_niches(only_enabled=True)]
     if output in ("youtube", "tiktok"):
         niches = [n for n in niches if core.get_niche(n).get("has_yt_tiktok")]
-    # Честная ротация: раньше ниши шли фиксированным порядком, и хвост списка вечно отсекался
-    # бюджетом → одни и те же ниши (soviet_things/psy_stories) НИКОГДА не публиковались.
-    # Стартуем с той ниши, на которой прошлый запуск оборвался по бюджету — round-robin по
-    # запускам покрывает все ниши. Только для полного прогона (точечный --niche не двигает курсор).
-    start = _load_cursor().get(output, 0) if not single else 0
-    niches = _rotate(niches, start)
+    # Порядок ниш: давность публикации → вес из аналитики (_order_niches). Анти-голодание
+    # прежнего round-robin-курсора сохраняется: отсечённая бюджетом ниша назавтра «старше»
+    # всех и встаёт в начало. Точечный --niche порядок не трогает.
+    if not single:
+        niches = _order_niches(output, niches)
 
     # Бюджет по времени: не начинать новую нишу под конец лимита GitHub (timeout-minutes).
     # Иначе джоб убивают ПОСРЕДИ сборки → шаг commit-back не успевает сохранить состояние
@@ -347,12 +367,11 @@ def run(output: str, niche: str | None = None) -> list:
     use_alarm = niche_cap_s > 0 and hasattr(signal, "SIGALRM")
 
     t0 = time.time()
-    allr, skipped, processed = [], [], 0
+    allr, skipped = [], []
     for n in niches:
         if time.time() - t0 > budget_s:
             skipped.append(n)
             continue
-        processed += 1                    # ниша получила свой слот (пост/анти-дубль/ошибка) — курсор её минует
         print(f"— {output} · {n} —")
         if already_posted(output, n):
             print(f"  ⏭ уже опубликовано сегодня ({output}/{n}) — пропуск (анти-дубль)")
@@ -388,9 +407,6 @@ def run(output: str, niche: str | None = None) -> list:
                     signal.signal(signal.SIGALRM, prev_handler if prev_handler is not None else signal.SIG_DFL)
                 except (ValueError, OSError, TypeError):
                     pass
-    # Курсор: следующий запуск начнёт с первой НЕобработанной (отсечённой бюджетом) ниши.
-    if not single and niches:
-        _save_cursor(output, (start + processed) % len(niches))
     if skipped:
         # НЕ молча: явно сообщаем, до каких ниш не дошли в бюджете времени (получат слот в след. запуске).
         print(f"⏳ бюджет времени исчерпан — пропущено ниш: {len(skipped)}: {', '.join(skipped)}")

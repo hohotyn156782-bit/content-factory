@@ -17,6 +17,10 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write   # commit-back снапшота state/report_snapshot.json штатным github.token
+    env:
+      # Тот же DATA_ROOT, что у автопилота: недельный recalibrate пишет niche_weights.json
+      # в state/cfdata/data/, коммит-бэк доносит его до ранов автопилота (порядок ниш по весам).
+      CF_DATA_ROOT: ${{ github.workspace }}/state/cfdata
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -36,16 +40,25 @@ jobs:
         run: python3 tools/preflight.py || true
       - name: Ежедневный отчёт по каналам → TG
         run: python3 pipeline/daily_report.py --send
-      - name: Сохранить снапшот отчёта (для дневных дельт) — коммит-бэк
+      - name: Недельный дайджест «что залетело» → TG (по воскресеньям)
+        run: |
+          if [ "$(date -u +%u)" = "7" ]; then
+            python3 pipeline/analytics.py collect_ledger || true
+            python3 pipeline/analytics.py recalibrate || true
+            python3 pipeline/analytics.py digest
+          else
+            echo "не воскресенье — пропуск дайджеста"
+          fi
+      - name: Сохранить снапшот отчёта + веса ниш/метрики — коммит-бэк
         if: always()
         run: |
           git config user.email "autopilot@content-factory"
           git config user.name "cf-daily-report"
-          if [ -z "$(git status --porcelain state/report_snapshot.json 2>/dev/null)" ]; then
-            echo "снапшот без изменений — коммитить нечего"; exit 0
+          if [ -z "$(git status --porcelain state/ 2>/dev/null)" ]; then
+            echo "state/ без изменений — коммитить нечего"; exit 0
           fi
-          git add state/report_snapshot.json
-          git commit -m "state: снапшот отчёта [skip ci]" || { echo "нечего коммитить"; exit 0; }
+          git add state/
+          git commit -m "state: снапшот отчёта + веса ниш [skip ci]" || { echo "нечего коммитить"; exit 0; }
           for i in 1 2 3 4 5; do
             git pull --rebase --autostash origin master && git push origin master && exit 0
             echo "push попытка $i не удалась, повтор через 5с"; sleep 5
