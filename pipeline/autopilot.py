@@ -199,7 +199,12 @@ def post_ig_vk(niche_id: str) -> list:
             ok, info = _retry_pub(vk_video.publish, video, meta, a)
         r.append((f"{p}/{a.get('display_name') or a.get('ext_id')}", ok, _url(info)))
         led.append(_entry(p, a, ok, info))
-    _ledger("ig_vk", niche_id, meta.get("topic", ""), led)
+        # Леджер и анти-дубль — сразу после каждой успешной ноги: Threads-хвост может ждать
+        # обработку у Meta до ~10 мин, и SIGALRM-обрыв там не должен терять уже сделанные
+        # IG/VK-публикации (иначе назавтра передубль).
+        if ok:
+            _ledger("ig_vk", niche_id, meta.get("topic", ""), [led[-1]])
+            _mark_posted("ig_vk", niche_id)
     return r
 
 
