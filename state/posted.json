@@ -198,6 +198,17 @@
       "mind_facts",
       "money_facts",
       "ai_lifehacks"
+    ],
+    "text": [
+      "ai_lifehacks",
+      "business_stories",
+      "history_facts",
+      "mind_facts",
+      "money_facts",
+      "mystic_stories",
+      "psy_stories",
+      "soviet_things",
+      "talking_objects"
     ]
   }
 }
