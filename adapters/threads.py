@@ -37,7 +37,8 @@ def _post(url: str, **params):
         return None, f"Threads HTTP {r.status_code}"
     if isinstance(j, dict) and j.get("error"):
         e = j["error"]
-        return None, f"Threads error: {e.get('message') or e}"
+        # код/subcode нужны для диагностики: «resource does not exist» бывает и транзиентным у Meta
+        return None, f"Threads error {e.get('code')}/{e.get('error_subcode') or '-'}: {e.get('message') or e}"
     return j, None
 
 

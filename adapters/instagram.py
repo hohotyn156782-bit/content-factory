@@ -97,13 +97,15 @@ def publish(video_path: str, meta: dict, account: dict | None = None):
     # 2) ждём FINISHED (exp backoff)
     for attempt in range(20):
         time.sleep(min(8 + attempt * 4, 30))
-        st = requests.get(f"{GRAPH}/{cid}", params={"fields": "status_code", "access_token": token},
+        st = requests.get(f"{GRAPH}/{cid}", params={"fields": "status_code,status", "access_token": token},
                           timeout=30).json()
         code = st.get("status_code")
         if code == "FINISHED":
             break
         if code == "ERROR":
-            return False, "обработка не удалась: " + ((st.get("error") or {}).get("message", "")[:120])
+            # поле status несёт подробность («ERROR: причина»), error.message тут обычно пуст
+            detail = (st.get("error") or {}).get("message") or st.get("status") or str(st)
+            return False, "обработка не удалась: " + detail[:160]
     else:
         return False, "контейнер не дошёл до FINISHED за отведённое время"
 
