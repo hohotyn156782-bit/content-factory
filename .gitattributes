@@ -1,0 +1,8 @@
+# state/ пишут параллельные CI-раны — merge без конфликтов, чтобы коммит-бэк не терял state.
+# jsonl — append-only логи: построчное объединение (встроенный union).
+# json — накопительные словари: семантический merge (tools/merge_state.py, драйвер cfjson
+# настраивается в шаге коммит-бэка autopilot.yml; без настройки git откатится на обычный merge).
+state/*.jsonl merge=union
+state/cfdata/*.jsonl merge=union
+state/*.json merge=cfjson
+state/cfdata/*.json merge=cfjson

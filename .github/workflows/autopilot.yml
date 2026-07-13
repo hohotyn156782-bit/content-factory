@@ -82,6 +82,9 @@ jobs:
         run: |
           git config user.email "autopilot@content-factory"
           git config user.name "cf-autopilot"
+          # семантический merge state/ при гонке параллельных ранов (см. .gitattributes):
+          # jsonl — union, json-словари — tools/merge_state.py
+          git config merge.cfjson.driver "python3 tools/merge_state.py %O %A %B"
           # факт. изменения только под state/ (serials.json, cfdata/history.jsonl)
           if [ -z "$(git status --porcelain state/ 2>/dev/null)" ]; then
             echo "state/ без изменений — коммитить нечего"; exit 0
@@ -91,6 +94,9 @@ jobs:
           ok=""
           for i in 1 2 3 4 5; do
             git pull --rebase --autostash origin master && git push origin master && { ok=1; break; }
+            # неудачный rebase оставляет unmerged-файлы — без сброса все следующие попытки мертвы
+            git rebase --abort 2>/dev/null || true
+            git merge --abort 2>/dev/null || true
             echo "push попытка $i не удалась, повтор через 5с"; sleep 5
           done
           if [ -z "$ok" ]; then

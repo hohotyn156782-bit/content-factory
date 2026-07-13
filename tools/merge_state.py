@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+"""Git merge-driver для JSON-словарей в state/ (attempts.json, posted.json, serials.json...).
+
+Параллельные CI-раны (например, youtube и tiktok в один день) коммитят state/ независимо —
+обычный текстовый merge даёт конфликт, коммит-бэк падает и state рана теряется
+(кейс 2026-07-13: tiktok-ран доставил видео, но потерял attempts/posted/history).
+
+Семантика merge (три версии: base %O, ours %A, theirs %B):
+- dict: объединение ключей, рекурсивно;
+- list: ours + элементы theirs, которых нет в ours (порядок сохраняем — списки здесь
+  накопительные: ниши за день, попытки);
+- скаляр при расхождении: theirs (при rebase в CI theirs = коммит текущего рана,
+  его данные свежее для того, что он трогал).
+
+Использование (настраивается в шаге коммит-бэка autopilot.yml + .gitattributes):
+  git config merge.cfjson.driver "python3 tools/merge_state.py %O %A %B"
+Выход 0 = смержено (результат записан в %A), не-0 = пусть git оставит конфликт.
+"""
+import json
+import sys
+
+
+def merge(base, ours, theirs):
+    if isinstance(ours, dict) and isinstance(theirs, dict):
+        out = dict(ours)
+        b = base if isinstance(base, dict) else {}
+        for k, tv in theirs.items():
+            out[k] = merge(b.get(k), ours[k], tv) if k in ours else tv
+        return out
+    if isinstance(ours, list) and isinstance(theirs, list):
+        return ours + [x for x in theirs if x not in ours]
+    return theirs if ours != theirs else ours
+
+
+def main():
+    base_p, ours_p, theirs_p = sys.argv[1:4]
+
+    def load(p):
+        try:
+            with open(p, encoding="utf-8") as f:
+                txt = f.read().strip()
+            return json.loads(txt) if txt else {}
+        except (OSError, json.JSONDecodeError):
+            return None
+
+    base, ours, theirs = load(base_p), load(ours_p), load(theirs_p)
+    if ours is None or theirs is None:
+        return 1
+    merged = merge(base if base is not None else {}, ours, theirs)
+    with open(ours_p, "w", encoding="utf-8") as f:
+        json.dump(merged, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
