@@ -80,7 +80,13 @@ def morning(date: str | None = None) -> None:
             picked = selector.pick_topics(niche, n=1, recent=recent)  # реальные тренды → тема
             topic = (picked[0] if picked else _parser_topics(niche, 1)[0])
             db.clear_plan(b["id"], date)
+            # niches.json['platforms'] — та же защита, что в autopilot._accounts: у бандла может быть
+            # connected-аккаунт площадки, которую ниша НЕ использует (money_facts→VK-only,
+            # а IG/Threads бандла = личный аккаунт владельца) → слот не создаём
+            allowed = set((niche or {}).get("platforms", []) or [])
             for acc in b["accounts"]:
+                if allowed and acc["platform"] not in allowed:
+                    continue
                 kind = acc.get("kind") or db.KIND_DEFAULT.get(acc["platform"], "video")
                 slot = db.slot_for(acc["platform"], date)  # время по дню недели из schedule.json
                 db.create_plan_item(b["id"], date, acc["platform"], kind, slot, topic, source="parser")
@@ -315,10 +321,15 @@ def tick(date: str | None = None) -> None:
                 posted_cnt[(b["id"], it["platform"])] = posted_cnt.get((b["id"], it["platform"]), 0) + 1
     for b in db.list_bundles():
         acc_by_p = {a["platform"]: a for a in b["accounts"]}
+        # второй рубеж анти-утечки (как в morning): не публиковать в площадку, которой нет
+        # в niches.json['platforms'] — даже если слот в плане уже существует (старый/ручной)
+        allowed = set((core.get_niche(b["niche_id"]) or {}).get("platforms", []) or [])
         for it in db.list_plan(b["id"], date):
             if it["status"] != "ready" or it["slot_time"] > now:
                 continue
             p = it["platform"]
+            if allowed and p not in allowed:
+                continue
             acc = acc_by_p.get(p, {})
             if p == "tiktok":
                 db.update_plan_item(it["id"], status="manual_pending")
