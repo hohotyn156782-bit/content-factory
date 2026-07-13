@@ -1,5 +1,5 @@
 {
-  "_comment": "Каскад LLM по КАЧЕСТВУ (топ→слабее), все OpenAI-совместимы. Несколько ключей через запятую. 429/исчерпание → cooldown ключа → следующий ключ → следующий провайдер. Активен, если есть ≥1 ключ. NVIDIA ИСКЛЮЧЁН из текста — ключ зарезервирован ТОЛЬКО под генерацию картинок (pipeline/imagegen.py, FLUX). Порядок и model-id проверены живьём 2026-06-16.",
+  "_comment": "Каскад LLM по КАЧЕСТВУ (топ→слабее), все OpenAI-совместимы. Несколько ключей через запятую. 429/исчерпание → cooldown ключа → следующий ключ → следующий провайдер. Активен, если есть ≥1 ключ. NVIDIA с 2026-07-13 работает и на текст (лимит поминутный, картинкам FLUX не мешает). Порядок и model-id проверены живьём 2026-06-16, cerebras/nvidia — 2026-07-13.",
   "providers": [
     {
       "name": "github-models",
@@ -44,6 +44,17 @@
       "cooldown_sec": 3600,
       "transient_cooldown_sec": 60,
       "free_note": "overflow: 2.5 Flash-Lite, те же GEMINI_API_KEY, 1500 RPD/ключ"
+    },
+    {
+      "name": "nvidia-nim",
+      "enabled": true,
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "model": "deepseek-ai/deepseek-v4-flash",
+      "key_env": "NVIDIA_API_KEY",
+      "json_mode": true,
+      "cooldown_sec": 600,
+      "transient_cooldown_sec": 30,
+      "free_note": "ВКЛючён для текста 2026-07-13: лимит NVIDIA поминутный (40 RPM на ключ), дневного нет — с FLUX-картинками (imagegen.py, тот же ключ) не конкурирует при объёмах фабрики. deepseek-v4-flash проверен живьём 2026-07-13 (HTTP 200)."
     },
     {
       "name": "cerebras",
@@ -110,17 +121,6 @@
       "cooldown_sec": 1800,
       "transient_cooldown_sec": 10,
       "free_note": "#8: ~500K токенов/день free, ключ cpk_ на chutes.ai. Ключа пока нет."
-    },
-    {
-      "name": "nvidia-nim",
-      "enabled": false,
-      "base_url": "https://integrate.api.nvidia.com/v1",
-      "model": "deepseek-ai/deepseek-v4-flash",
-      "key_env": "NVIDIA_API_KEY",
-      "json_mode": true,
-      "cooldown_sec": 600,
-      "transient_cooldown_sec": 30,
-      "free_note": "ВЫКЛ для текста НАМЕРЕННО: ключ NVIDIA зарезервирован ТОЛЬКО под генерацию картинок (imagegen.py, FLUX). Текст deepseek-v4-flash работает — включить можно, если появится отдельный NVIDIA-ключ под текст."
     },
     {
       "name": "pollinations",
