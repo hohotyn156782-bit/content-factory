@@ -209,6 +209,13 @@
       "psy_stories",
       "soviet_things",
       "talking_objects"
+    ],
+    "youtube": [
+      "ai_lifehacks",
+      "business_stories",
+      "mind_facts",
+      "personal_brand",
+      "psy_stories"
     ]
   }
 }
