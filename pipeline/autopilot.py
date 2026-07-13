@@ -299,33 +299,65 @@ def _raise_niche_timeout(signum, frame):    # обработчик SIGALRM
     raise _NicheTimeout()
 
 
-def _last_posted_day(output: str) -> dict:
-    """niche → день последней успешной публикации этого выхода (из леджера posts.jsonl)."""
+_ATTEMPTS = _STATE / "attempts.json"   # день последней ПОПЫТКИ по (output, niche) — для порядка ниш
+
+
+def _load_attempts() -> dict:
+    try:
+        return json.loads(_ATTEMPTS.read_text(encoding="utf-8")) if _ATTEMPTS.exists() else {}
+    except Exception as e:  # noqa: BLE001
+        core.log_error("autopilot._load_attempts", e)
+        return {}
+
+
+def _mark_attempt(output: str, niche_id: str) -> None:
+    """Пометить, что ниша сегодня получила слот (даже если публикация не удалась).
+    Порядок ниш строится по дню последней ПОПЫТКИ: по дню успеха стабильно падающая ниша
+    (протухший токен/QA-трэшинг) вечно стояла бы первой и каждый ран съедала голову бюджета."""
+    day = core.today_str()[:10]
+    d = _load_attempts()
+    d.setdefault(day, {}).setdefault(output, [])
+    if niche_id not in d[day][output]:
+        d[day][output].append(niche_id)
+    for old in sorted(d.keys())[:-7]:      # держим только последние 7 дней
+        d.pop(old, None)
+    try:
+        _atomic_write(_ATTEMPTS, json.dumps(d, ensure_ascii=False, indent=2))
+    except Exception as e:  # noqa: BLE001
+        core.log_error("autopilot._mark_attempt", e)
+
+
+def _last_touch_day(output: str) -> dict:
+    """niche → день, когда выход последний раз касался ниши: успехи — из леджера posts.jsonl
+    (история до появления attempts.json), попытки — из attempts.json."""
     out: dict = {}
-    if not _LEDGER.exists():
-        return out
-    for ln in _LEDGER.read_text(encoding="utf-8").splitlines():
-        if not ln.strip():
-            continue
-        try:
-            e = json.loads(ln)
-        except ValueError:
-            continue
-        if e.get("output") != output or not e.get("ok") or not e.get("niche"):
-            continue
-        day = str(e.get("ts") or "")[:10]
-        if day > out.get(e["niche"], ""):
-            out[e["niche"]] = day
+    if _LEDGER.exists():
+        for ln in _LEDGER.read_text(encoding="utf-8").splitlines():
+            if not ln.strip():
+                continue
+            try:
+                e = json.loads(ln)
+            except ValueError:
+                continue
+            if e.get("output") != output or not e.get("ok") or not e.get("niche"):
+                continue
+            day = str(e.get("ts") or "")[:10]
+            if day > out.get(e["niche"], ""):
+                out[e["niche"]] = day
+    for day, per_out in _load_attempts().items():
+        for n in per_out.get(output, []) or []:
+            if day > out.get(n, ""):
+                out[n] = day
     return out
 
 
 def _order_niches(output: str, ids: list) -> list:
-    """Порядок обработки ниш: сперва давность (кто дольше не публиковался — анти-голодание,
+    """Порядок обработки ниш: сперва давность (кто дольше не получал слот — анти-голодание,
     роль прежнего round-robin-курсора), при равной давности — вес ниши из аналитики
     (data/niche_weights.json: что реально набирает просмотры). Бюджет времени отсекает
     ХВОСТ списка → в хвост попадают слабые по метрикам ниши, а не случайные."""
     from pipeline import analytics
-    last = _last_posted_day(output)
+    last = _last_touch_day(output)
     return sorted(ids, key=lambda n: (last.get(n, ""), -analytics.weight_for(n), n))
 
 
@@ -373,6 +405,7 @@ def run(output: str, niche: str | None = None) -> list:
             skipped.append(n)
             continue
         print(f"— {output} · {n} —")
+        _mark_attempt(output, n)
         if already_posted(output, n):
             print(f"  ⏭ уже опубликовано сегодня ({output}/{n}) — пропуск (анти-дубль)")
             continue

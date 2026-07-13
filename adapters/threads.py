@@ -80,7 +80,8 @@ def publish_text(message: str, account: dict) -> tuple[bool, dict | str]:
 
 
 def publish_video(video_url: str, caption: str, account: dict) -> tuple[bool, dict | str]:
-    """Опубликовать REELS из ПУБЛИЧНОГО HTTPS-URL на mp4 (для будущего видео-постинга)."""
+    """Опубликовать видео-тред из ПУБЛИЧНОГО HTTPS-URL на mp4."""
+    import time
     cr = _creds(account)
     if not cr:
         return False, "нет кред Threads"
@@ -92,10 +93,32 @@ def publish_video(video_url: str, caption: str, account: dict) -> tuple[bool, di
     if err:
         return False, err
     cid = cont.get("id")
-    pub, err = _post(f"{API}/{uid}/threads_publish", creation_id=cid, access_token=token)
-    if err:
-        return False, err
-    return True, {"post_id": pub.get("id")}
+    if not cid:
+        return False, f"нет creation_id: {cont}"
+    # Обработка видео у Meta асинхронная: публиковать можно только после FINISHED, иначе
+    # threads_publish отдаёт «media not ready». Поллинг с backoff — как в instagram.py.
+    for attempt in range(20):
+        time.sleep(min(8 + attempt * 4, 30))
+        try:
+            st = requests.get(f"{API}/{cid}", params={"fields": "status,error_message",
+                                                      "access_token": token}, timeout=30).json()
+        except Exception:  # noqa: BLE001
+            st = {}
+        code = st.get("status") or st.get("status_code")
+        if code == "FINISHED":
+            break
+        if code in ("ERROR", "EXPIRED"):
+            return False, f"обработка видео не удалась: {st.get('error_message') or code}"
+    else:
+        return False, "контейнер не дошёл до FINISHED за отведённое время"
+    # публикация (ретрай на транзиентный «not ready» даже после FINISHED — как в instagram.py)
+    pub, err = None, None
+    for attempt in range(5):
+        pub, err = _post(f"{API}/{uid}/threads_publish", creation_id=cid, access_token=token)
+        if pub and pub.get("id"):
+            return True, {"post_id": pub.get("id")}
+        time.sleep(5 * (attempt + 1))
+    return False, err or f"публикация не удалась: {pub}"
 
 
 SECRETS_ENV = pathlib.Path("~/.config/content-factory/secrets.env").expanduser()

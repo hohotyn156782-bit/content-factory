@@ -45,7 +45,7 @@ jobs:
           if [ "$(date -u +%u)" = "7" ]; then
             python3 pipeline/analytics.py collect_ledger || true
             python3 pipeline/analytics.py recalibrate || true
-            python3 pipeline/analytics.py digest
+            python3 pipeline/analytics.py digest || echo "::warning::недельный дайджест упал — см. лог шага"
           else
             echo "не воскресенье — пропуск дайджеста"
           fi
