@@ -49,12 +49,12 @@
       "name": "cerebras",
       "enabled": true,
       "base_url": "https://api.cerebras.ai/v1",
-      "model": "qwen-3-32b",
+      "model": "gpt-oss-120b",
       "key_env": "CEREBRAS_API_KEY",
       "json_mode": true,
       "cooldown_sec": 3600,
       "transient_cooldown_sec": 30,
-      "free_note": "#4: Qwen3-32B, ~1М токенов/день, очень быстрый, без карты. Ключа пока нет."
+      "free_note": "#4: gpt-oss-120b (qwen-3-32b убран с free-тира Cerebras — ресёрч 2026-07-13). 6 ключей, 5 RPM / ~1M токенов/день на ключ, без карты. Все 6 проверены живьём 2026-07-13 (HTTP 200)."
     },
     {
       "name": "groq",
