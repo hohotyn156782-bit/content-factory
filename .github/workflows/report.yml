@@ -54,6 +54,8 @@ jobs:
         run: |
           git config user.email "autopilot@content-factory"
           git config user.name "cf-daily-report"
+          # семантический merge state/ при гонке с ранами автопилота (см. .gitattributes)
+          git config merge.cfjson.driver "python3 tools/merge_state.py %O %A %B"
           if [ -z "$(git status --porcelain state/ 2>/dev/null)" ]; then
             echo "state/ без изменений — коммитить нечего"; exit 0
           fi
@@ -61,6 +63,9 @@ jobs:
           git commit -m "state: снапшот отчёта + веса ниш [skip ci]" || { echo "нечего коммитить"; exit 0; }
           for i in 1 2 3 4 5; do
             git pull --rebase --autostash origin master && git push origin master && exit 0
+            # неудачный rebase оставляет unmerged-файлы — без сброса следующие попытки мертвы
+            git rebase --abort 2>/dev/null || true
+            git merge --abort 2>/dev/null || true
             echo "push попытка $i не удалась, повтор через 5с"; sleep 5
           done
           echo "::warning::коммит-бэк снапшота не удался — дневная дельта может сброситься"

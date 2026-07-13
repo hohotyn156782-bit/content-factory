@@ -6,11 +6,13 @@
 (кейс 2026-07-13: tiktok-ран доставил видео, но потерял attempts/posted/history).
 
 Семантика merge (три версии: base %O, ours %A, theirs %B):
-- dict: объединение ключей, рекурсивно;
+- dict: объединение ключей, рекурсивно; ключ, удалённый одной стороной и не тронутый
+  другой, остаётся удалённым (ротация старых дней в attempts.json);
 - list: ours + элементы theirs, которых нет в ours (порядок сохраняем — списки здесь
   накопительные: ниши за день, попытки);
-- скаляр при расхождении: theirs (при rebase в CI theirs = коммит текущего рана,
-  его данные свежее для того, что он трогал).
+- скаляр: настоящий three-way — theirs не менял относительно base → берём ours,
+  иначе theirs. Без сравнения с base сторона, коммитящая устаревшую копию файла
+  (serials.py перезаписывает весь serials.json), тихо откатывала бы чужой свежий state.
 
 Использование (настраивается в шаге коммит-бэка autopilot.yml + .gitattributes):
   git config merge.cfjson.driver "python3 tools/merge_state.py %O %A %B"
@@ -25,11 +27,16 @@ def merge(base, ours, theirs):
         out = dict(ours)
         b = base if isinstance(base, dict) else {}
         for k, tv in theirs.items():
-            out[k] = merge(b.get(k), ours[k], tv) if k in ours else tv
+            if k in ours:
+                out[k] = merge(b.get(k), ours[k], tv)
+            elif k in b and tv == b[k]:
+                pass  # ours удалил ключ, theirs его не трогал — оставить удалённым
+            else:
+                out[k] = tv
         return out
     if isinstance(ours, list) and isinstance(theirs, list):
         return ours + [x for x in theirs if x not in ours]
-    return theirs if ours != theirs else ours
+    return ours if theirs == base else theirs
 
 
 def main():
