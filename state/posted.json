@@ -200,6 +200,12 @@
       "mystic_stories",
       "ai_lifehacks",
       "history_facts"
+    ],
+    "youtube": [
+      "ai_lifehacks",
+      "business_stories",
+      "mind_facts",
+      "personal_brand"
     ]
   }
 }
