@@ -202,6 +202,12 @@
       "personal_brand",
       "psy_stories",
       "ai_lifehacks"
+    ],
+    "youtube": [
+      "ai_lifehacks",
+      "mind_facts",
+      "personal_brand",
+      "psy_stories"
     ]
   }
 }
