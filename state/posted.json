@@ -208,6 +208,17 @@
       "mind_facts",
       "personal_brand",
       "psy_stories"
+    ],
+    "text": [
+      "ai_lifehacks",
+      "business_stories",
+      "history_facts",
+      "mind_facts",
+      "money_facts",
+      "mystic_stories",
+      "psy_stories",
+      "soviet_things",
+      "talking_objects"
     ]
   }
 }
