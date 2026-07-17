@@ -1,17 +1,17 @@
 {
-  "date": "16.07",
+  "date": "17.07",
   "totals": {
-    "subs": 19,
-    "views": 5870
+    "subs": 20,
+    "views": 5935
   },
   "niches": {
     "mind_facts": {
       "subs_total": 4,
-      "views": 161
+      "views": 182
     },
     "ai_lifehacks": {
       "subs_total": 3,
-      "views": 1000
+      "views": 1024
     },
     "money_facts": {
       "subs_total": 2,
@@ -22,8 +22,8 @@
       "views": 0
     },
     "history_facts": {
-      "subs_total": 2,
-      "views": 2279
+      "subs_total": 3,
+      "views": 2283
     },
     "ai_lifehacks_en": {
       "subs_total": 0,
@@ -31,15 +31,15 @@
     },
     "talking_objects": {
       "subs_total": 2,
-      "views": 67
+      "views": 68
     },
     "business_stories": {
       "subs_total": 1,
-      "views": 1362
+      "views": 1350
     },
     "mystic_stories": {
       "subs_total": 3,
-      "views": 190
+      "views": 213
     },
     "what_if": {
       "subs_total": 0,
@@ -47,11 +47,11 @@
     },
     "soviet_things": {
       "subs_total": 1,
-      "views": 511
+      "views": 513
     },
     "psy_stories": {
       "subs_total": 1,
-      "views": 260
+      "views": 262
     }
   }
 }
