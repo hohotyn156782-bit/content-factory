@@ -1,38 +1,4 @@
 {
-  "2026-07-14": {
-    "ig_vk": [
-      "business_stories",
-      "mystic_stories",
-      "ai_lifehacks",
-      "history_facts"
-    ],
-    "youtube": [
-      "ai_lifehacks",
-      "business_stories",
-      "mind_facts",
-      "personal_brand",
-      "psy_stories"
-    ],
-    "text": [
-      "ai_lifehacks",
-      "business_stories",
-      "history_facts",
-      "mind_facts",
-      "money_facts",
-      "mystic_stories",
-      "personal_brand",
-      "psy_stories",
-      "soviet_things",
-      "talking_objects"
-    ],
-    "tiktok": [
-      "ai_lifehacks",
-      "business_stories",
-      "mind_facts",
-      "personal_brand",
-      "psy_stories"
-    ]
-  },
   "2026-07-15": {
     "ig_vk": [
       "mind_facts",
@@ -251,6 +217,17 @@
       "ai_lifehacks",
       "psy_stories",
       "mind_facts"
+    ]
+  },
+  "2026-07-21": {
+    "ig_vk": [
+      "ai_lifehacks",
+      "mind_facts",
+      "talking_objects",
+      "money_facts",
+      "history_facts",
+      "business_stories",
+      "soviet_things"
     ]
   }
 }
