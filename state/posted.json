@@ -204,6 +204,12 @@
       "talking_objects",
       "money_facts",
       "history_facts"
+    ],
+    "youtube": [
+      "personal_brand",
+      "ai_lifehacks",
+      "psy_stories",
+      "mind_facts"
     ]
   }
 }
