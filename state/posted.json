@@ -198,6 +198,12 @@
       "mystic_stories",
       "history_facts",
       "soviet_things"
+    ],
+    "youtube": [
+      "business_stories",
+      "personal_brand",
+      "ai_lifehacks",
+      "mind_facts"
     ]
   }
 }
