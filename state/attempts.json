@@ -227,6 +227,13 @@
       "business_stories",
       "history_facts",
       "soviet_things"
+    ],
+    "youtube": [
+      "business_stories",
+      "personal_brand",
+      "psy_stories",
+      "ai_lifehacks",
+      "mind_facts"
     ]
   }
 }
