@@ -193,6 +193,11 @@
       "personal_brand",
       "mind_facts",
       "money_facts"
+    ],
+    "youtube": [
+      "personal_brand",
+      "ai_lifehacks",
+      "mind_facts"
     ]
   }
 }
