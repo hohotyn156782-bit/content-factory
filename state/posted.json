@@ -168,6 +168,11 @@
       "mind_facts",
       "money_facts",
       "business_stories"
+    ],
+    "youtube": [
+      "personal_brand",
+      "ai_lifehacks",
+      "mind_facts"
     ]
   }
 }
