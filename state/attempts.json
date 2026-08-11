@@ -199,6 +199,13 @@
       "psy_stories",
       "mystic_stories",
       "business_stories"
+    ],
+    "youtube": [
+      "business_stories",
+      "personal_brand",
+      "ai_lifehacks",
+      "psy_stories",
+      "mind_facts"
     ]
   }
 }
