@@ -1,17 +1,4 @@
 {
-  "2026-08-06": {
-    "ig_vk": [
-      "history_facts",
-      "personal_brand",
-      "mind_facts",
-      "money_facts"
-    ],
-    "youtube": [
-      "personal_brand",
-      "ai_lifehacks",
-      "mind_facts"
-    ]
-  },
   "2026-08-07": {
     "ig_vk": [
       "ai_lifehacks"
@@ -185,6 +172,13 @@
       "ai_lifehacks",
       "psy_stories",
       "mind_facts"
+    ]
+  },
+  "2026-08-13": {
+    "ig_vk": [
+      "money_facts",
+      "history_facts",
+      "ai_lifehacks"
     ]
   }
 }
