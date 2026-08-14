@@ -182,6 +182,12 @@
       "personal_brand",
       "mind_facts",
       "talking_objects"
+    ],
+    "youtube": [
+      "business_stories",
+      "personal_brand",
+      "ai_lifehacks",
+      "mind_facts"
     ]
   }
 }
