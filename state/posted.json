@@ -198,6 +198,11 @@
       "mind_facts",
       "talking_objects",
       "money_facts"
+    ],
+    "tiktok": [
+      "personal_brand",
+      "ai_lifehacks",
+      "mind_facts"
     ]
   }
 }
