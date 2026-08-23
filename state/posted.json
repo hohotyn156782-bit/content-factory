@@ -182,6 +182,11 @@
       "money_facts",
       "business_stories",
       "history_facts"
+    ],
+    "youtube": [
+      "personal_brand",
+      "ai_lifehacks",
+      "mind_facts"
     ]
   }
 }
