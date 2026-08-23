@@ -1,36 +1,36 @@
 {
-  "updated": "2026-08-16T21:28:12.385994+03:00",
+  "updated": "2026-08-23T21:31:43.445200+03:00",
   "weights": {
-    "ai_lifehacks": 0.648,
-    "money_facts": 0.518,
-    "talking_objects": 0.526,
-    "mind_facts": 0.553,
-    "history_facts": 1.762,
+    "ai_lifehacks": 0.642,
+    "money_facts": 0.521,
+    "talking_objects": 0.527,
+    "mind_facts": 0.552,
+    "history_facts": 1.737,
     "business_stories": 2.0,
-    "mystic_stories": 0.579,
-    "soviet_things": 1.725,
-    "psy_stories": 0.634
+    "mystic_stories": 0.576,
+    "soviet_things": 1.763,
+    "psy_stories": 0.63
   },
   "avg_views": {
-    "ai_lifehacks": 17,
+    "ai_lifehacks": 16,
     "money_facts": 2,
     "talking_objects": 3,
     "mind_facts": 6,
-    "history_facts": 144,
-    "business_stories": 178,
-    "mystic_stories": 9,
+    "history_facts": 137,
+    "business_stories": 172,
+    "mystic_stories": 8,
     "soviet_things": 140,
-    "psy_stories": 15
+    "psy_stories": 14
   },
   "samples": {
-    "ai_lifehacks": 91,
-    "money_facts": 50,
+    "ai_lifehacks": 98,
+    "money_facts": 57,
     "talking_objects": 69,
-    "mind_facts": 131,
-    "history_facts": 80,
-    "business_stories": 64,
-    "mystic_stories": 40,
-    "soviet_things": 49,
-    "psy_stories": 52
+    "mind_facts": 146,
+    "history_facts": 87,
+    "business_stories": 68,
+    "mystic_stories": 43,
+    "soviet_things": 55,
+    "psy_stories": 57
   }
 }
