@@ -196,6 +196,18 @@
       "personal_brand",
       "ai_lifehacks",
       "psy_stories"
+    ],
+    "text": [
+      "business_stories",
+      "soviet_things",
+      "history_facts",
+      "personal_brand",
+      "ai_lifehacks",
+      "psy_stories",
+      "mystic_stories",
+      "mind_facts",
+      "talking_objects",
+      "money_facts"
     ]
   }
 }
