@@ -175,6 +175,11 @@
       "mind_facts",
       "talking_objects",
       "money_facts"
+    ],
+    "ig_vk": [
+      "ai_lifehacks",
+      "psy_stories",
+      "money_facts"
     ]
   }
 }
