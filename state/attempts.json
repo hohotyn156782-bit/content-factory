@@ -200,6 +200,13 @@
       "mind_facts",
       "talking_objects",
       "money_facts"
+    ],
+    "youtube": [
+      "business_stories",
+      "personal_brand",
+      "ai_lifehacks",
+      "psy_stories",
+      "mind_facts"
     ]
   }
 }
