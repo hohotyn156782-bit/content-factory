@@ -155,6 +155,10 @@
       "personal_brand",
       "ai_lifehacks",
       "mind_facts"
+    ],
+    "ig_vk": [
+      "ai_lifehacks",
+      "talking_objects"
     ]
   }
 }
