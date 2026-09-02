@@ -208,6 +208,13 @@
       "mystic_stories",
       "mind_facts",
       "talking_objects"
+    ],
+    "youtube": [
+      "business_stories",
+      "personal_brand",
+      "ai_lifehacks",
+      "psy_stories",
+      "mind_facts"
     ]
   }
 }
