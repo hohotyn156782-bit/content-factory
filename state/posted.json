@@ -154,6 +154,13 @@
       "mystic_stories",
       "mind_facts",
       "money_facts"
+    ],
+    "youtube": [
+      "business_stories",
+      "personal_brand",
+      "ai_lifehacks",
+      "psy_stories",
+      "mind_facts"
     ]
   }
 }
