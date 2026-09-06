@@ -172,6 +172,12 @@
       "mind_facts",
       "talking_objects",
       "money_facts"
+    ],
+    "tiktok": [
+      "business_stories",
+      "personal_brand",
+      "psy_stories",
+      "mind_facts"
     ]
   }
 }
