@@ -163,6 +163,9 @@
     "ig_vk": [
       "mind_facts",
       "money_facts"
+    ],
+    "youtube": [
+      "mind_facts"
     ]
   }
 }
