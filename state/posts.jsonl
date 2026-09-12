@@ -2119,3 +2119,6 @@
 {"ts": "2026-09-11", "output": "tiktok", "niche": "ai_lifehacks", "topic": "автоматизация работы с кодом локальными LLM", "platform": "tiktok", "account": "tg-queue", "ok": true, "url": null, "ref": null, "queued": true}
 {"ts": "2026-09-11", "output": "tiktok", "niche": "psy_stories", "topic": "синдром отложенной жизни", "platform": "tiktok", "account": "tg-queue", "ok": true, "url": null, "ref": null, "queued": true}
 {"ts": "2026-09-11", "output": "tiktok", "niche": "mind_facts", "topic": "Тёмная сторона нашего выбора", "platform": "tiktok", "account": "tg-queue", "ok": true, "url": null, "ref": null, "queued": true}
+{"ts": "2026-09-12", "output": "youtube", "niche": "ai_lifehacks", "topic": "Запуск локальной LLM без интернета", "platform": "youtube", "account": "tg-queue", "ok": true, "url": null, "ref": null, "queued": true}
+{"ts": "2026-09-12", "output": "youtube", "niche": "psy_stories", "topic": "синдром отложенной жизни", "platform": "youtube", "account": "tg-queue", "ok": true, "url": null, "ref": null, "queued": true}
+{"ts": "2026-09-12", "output": "youtube", "niche": "mind_facts", "topic": "Тёмная сторона нашего выбора", "platform": "youtube", "account": "tg-queue", "ok": true, "url": null, "ref": null, "queued": true}
