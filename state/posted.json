@@ -1,24 +1,4 @@
 {
-  "2026-09-07": {
-    "ig_vk": [
-      "mind_facts",
-      "money_facts"
-    ],
-    "youtube": [
-      "mind_facts"
-    ],
-    "text": [
-      "business_stories",
-      "history_facts",
-      "soviet_things",
-      "ai_lifehacks",
-      "psy_stories",
-      "mystic_stories",
-      "mind_facts",
-      "talking_objects",
-      "money_facts"
-    ]
-  },
   "2026-09-08": {
     "tiktok": [
       "ai_lifehacks",
@@ -156,6 +136,13 @@
     "tiktok": [
       "business_stories",
       "personal_brand",
+      "ai_lifehacks",
+      "psy_stories",
+      "mind_facts"
+    ]
+  },
+  "2026-09-14": {
+    "youtube": [
       "ai_lifehacks",
       "psy_stories",
       "mind_facts"
