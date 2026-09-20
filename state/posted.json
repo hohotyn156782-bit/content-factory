@@ -158,6 +158,10 @@
       "mind_facts",
       "talking_objects",
       "money_facts"
+    ],
+    "tiktok": [
+      "ai_lifehacks",
+      "mind_facts"
     ]
   }
 }
