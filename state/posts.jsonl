@@ -2298,3 +2298,5 @@
 {"ts": "2026-09-20", "output": "text", "niche": "money_facts", "topic": "Ошибка", "platform": "vk", "account": "Финансы просто", "ok": true, "url": "https://vk.com/wall-239724814_109", "ref": 109, "secret_ref": "VK_GRP_MONEY2_TOKEN", "ext_id": "-239724814"}
 {"ts": "2026-09-20", "output": "tiktok", "niche": "ai_lifehacks", "topic": "автоматизация заметок через бесплатный ИИ", "platform": "tiktok", "account": "tg-queue", "ok": true, "url": null, "ref": null, "queued": true}
 {"ts": "2026-09-20", "output": "tiktok", "niche": "mind_facts", "topic": "Память и забывание информации", "platform": "tiktok", "account": "tg-queue", "ok": true, "url": null, "ref": null, "queued": true}
+{"ts": "2026-09-21", "output": "youtube", "niche": "ai_lifehacks", "topic": "Скрытые функции ChatGPT Plus", "platform": "youtube", "account": "tg-queue", "ok": true, "url": null, "ref": null, "queued": true}
+{"ts": "2026-09-21", "output": "youtube", "niche": "mind_facts", "topic": "Тёмная сторона синдрома самозванца", "platform": "youtube", "account": "tg-queue", "ok": true, "url": null, "ref": null, "queued": true}
