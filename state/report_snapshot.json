@@ -1,5 +1,5 @@
 {
-  "date": "02.10",
+  "date": "03.10",
   "totals": {
     "subs": 21,
     "views": 35455
@@ -7,7 +7,7 @@
   "niches": {
     "mind_facts": {
       "subs_total": 5,
-      "views": 971
+      "views": 967
     },
     "ai_lifehacks": {
       "subs_total": 2,
@@ -15,7 +15,7 @@
     },
     "money_facts": {
       "subs_total": 2,
-      "views": 163
+      "views": 169
     },
     "personal_brand": {
       "subs_total": 0,
@@ -23,7 +23,7 @@
     },
     "history_facts": {
       "subs_total": 2,
-      "views": 11929
+      "views": 11930
     },
     "ai_lifehacks_en": {
       "subs_total": 0,
@@ -31,7 +31,7 @@
     },
     "talking_objects": {
       "subs_total": 1,
-      "views": 221
+      "views": 223
     },
     "business_stories": {
       "subs_total": 1,
@@ -51,7 +51,7 @@
     },
     "psy_stories": {
       "subs_total": 4,
-      "views": 844
+      "views": 839
     }
   }
 }
