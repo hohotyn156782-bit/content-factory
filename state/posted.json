@@ -151,6 +151,12 @@
     "ig_vk": [
       "talking_objects",
       "money_facts"
+    ],
+    "youtube": [
+      "personal_brand",
+      "ai_lifehacks",
+      "psy_stories",
+      "mind_facts"
     ]
   }
 }
