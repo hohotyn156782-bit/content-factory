@@ -3,7 +3,7 @@
   "niches": [
     {
       "id": "ai_lifehacks",
-      "enabled": true,
+      "enabled": false,
       "role": "brand",
       "lang": "ru",
       "title": "AI и автоматизация — фишки",
@@ -100,7 +100,7 @@
     },
     {
       "id": "history_facts",
-      "enabled": true,
+      "enabled": false,
       "role": "reach",
       "lang": "ru",
       "title": "История — удивительные факты",
@@ -142,7 +142,7 @@
     },
     {
       "id": "money_facts",
-      "enabled": true,
+      "enabled": false,
       "role": "reach",
       "lang": "ru",
       "title": "Деньги и финансы — факты",
@@ -227,7 +227,7 @@
     },
     {
       "id": "personal_brand",
-      "enabled": true,
+      "enabled": false,
       "role": "brand",
       "lang": "ru",
       "title": "BaronPavel — боты/сайты/автоматизация (личный бренд)",
@@ -273,7 +273,7 @@
     },
     {
       "id": "talking_objects",
-      "enabled": true,
+      "enabled": false,
       "role": "reach",
       "lang": "ru",
       "format": "story",
@@ -361,7 +361,7 @@
     },
     {
       "id": "mystic_stories",
-      "enabled": true,
+      "enabled": false,
       "role": "reach",
       "lang": "ru",
       "format": "story",
@@ -452,7 +452,7 @@
     },
     {
       "id": "soviet_things",
-      "enabled": true,
+      "enabled": false,
       "role": "reach",
       "lang": "ru",
       "format": "story",
@@ -496,7 +496,7 @@
     },
     {
       "id": "psy_stories",
-      "enabled": true,
+      "enabled": false,
       "role": "reach",
       "lang": "ru",
       "format": "story",
