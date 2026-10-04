@@ -232,6 +232,10 @@
     "youtube": [
       "business_stories",
       "mind_facts"
+    ],
+    "text": [
+      "business_stories",
+      "mind_facts"
     ]
   }
 }
