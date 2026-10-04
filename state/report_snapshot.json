@@ -1,13 +1,13 @@
 {
-  "date": "03.10",
+  "date": "04.10",
   "totals": {
     "subs": 2,
-    "views": 35468
+    "views": 35485
   },
   "niches": {
     "mind_facts": {
       "subs_total": 1,
-      "views": 968
+      "views": 975
     },
     "business_stories": {
       "subs_total": 1,
@@ -23,11 +23,11 @@
     },
     "talking_objects": {
       "subs_total": 0,
-      "views": 224
+      "views": 222
     },
     "history_facts": {
       "subs_total": 0,
-      "views": 11931
+      "views": 11933
     },
     "mystic_stories": {
       "subs_total": 0,
@@ -39,7 +39,7 @@
     },
     "psy_stories": {
       "subs_total": 0,
-      "views": 840
+      "views": 850
     }
   }
 }
