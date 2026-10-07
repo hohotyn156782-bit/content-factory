@@ -157,6 +157,10 @@
     "tiktok": [
       "business_stories",
       "mind_facts"
+    ],
+    "youtube": [
+      "business_stories",
+      "mind_facts"
     ]
   }
 }
