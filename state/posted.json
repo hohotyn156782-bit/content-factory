@@ -1,25 +1,4 @@
 {
-  "2026-10-03": {
-    "tiktok": [
-      "personal_brand",
-      "ai_lifehacks",
-      "psy_stories",
-      "mind_facts"
-    ],
-    "ig_vk": [
-      "talking_objects",
-      "money_facts"
-    ],
-    "youtube": [
-      "ai_lifehacks",
-      "psy_stories",
-      "mind_facts"
-    ],
-    "text": [
-      "business_stories",
-      "mind_facts"
-    ]
-  },
   "2026-10-04": {
     "text": [
       "business_stories",
@@ -57,6 +36,12 @@
     "youtube": [
       "business_stories"
     ],
+    "text": [
+      "business_stories",
+      "mind_facts"
+    ]
+  },
+  "2026-10-11": {
     "text": [
       "business_stories",
       "mind_facts"
