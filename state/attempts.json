@@ -103,6 +103,10 @@
     "tiktok": [
       "business_stories",
       "mind_facts"
+    ],
+    "ig_vk": [
+      "business_stories",
+      "mind_facts"
     ]
   }
 }
