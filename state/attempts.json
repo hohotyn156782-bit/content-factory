@@ -1,22 +1,4 @@
 {
-  "2026-10-10": {
-    "tiktok": [
-      "business_stories",
-      "mind_facts"
-    ],
-    "ig_vk": [
-      "business_stories",
-      "mind_facts"
-    ],
-    "youtube": [
-      "business_stories",
-      "mind_facts"
-    ],
-    "text": [
-      "business_stories",
-      "mind_facts"
-    ]
-  },
   "2026-10-11": {
     "ig_vk": [
       "business_stories",
@@ -113,6 +95,12 @@
       "mind_facts"
     ],
     "tiktok": [
+      "business_stories",
+      "mind_facts"
+    ]
+  },
+  "2026-10-17": {
+    "ig_vk": [
       "business_stories",
       "mind_facts"
     ]
