@@ -1,13 +1,4 @@
 {
-  "2026-10-10": {
-    "youtube": [
-      "business_stories"
-    ],
-    "text": [
-      "business_stories",
-      "mind_facts"
-    ]
-  },
   "2026-10-11": {
     "text": [
       "business_stories",
@@ -39,6 +30,12 @@
     ]
   },
   "2026-10-17": {
+    "text": [
+      "business_stories",
+      "mind_facts"
+    ]
+  },
+  "2026-10-18": {
     "text": [
       "business_stories",
       "mind_facts"
