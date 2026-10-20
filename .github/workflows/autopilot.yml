@@ -20,9 +20,7 @@ on:
         default: ""
   schedule:
     - cron: "0 8 * * *"    # ig_vk   (11:00 МСК)
-    - cron: "0 11 * * *"   # youtube (14:00 МСК) → TG Паше+Даше
     - cron: "0 14 * * *"   # text    (17:00 МСК)
-    - cron: "0 17 * * *"   # tiktok  (20:00 МСК) → TG Паше+Даше
 
 concurrency:
   group: autopilot
