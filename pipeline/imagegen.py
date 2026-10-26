@@ -24,7 +24,7 @@ import core  # noqa: E402
 GEMINI_IMG_MODEL = "gemini-2.5-flash-image"
 
 # Дневные лимиты картинок по провайдеру (gemini мёртв на free-tier → 0 = всегда пропускать).
-DAILY_LIMITS = {"nvidia": 40, "pollinations": 120, "gemini": 0}
+DAILY_LIMITS = {"nvidia": 40, "cloudflare": 300, "pollinations": 120, "gemini": 0}
 _quota_path = core.CACHE_DIR / "imagegen_quota.json"
 
 # In-memory cooldown по непрозрачным ключам (sha1[:12]) — на диск сырые секреты НЕ пишем.
@@ -51,12 +51,12 @@ def _cooldown_set(cid: str, until: float) -> None:
 
 def _quota_load() -> dict:
     """Дневной счётчик картинок. При отсутствии/повреждении/смене даты → свежий dict с нулями."""
-    fresh = {"date": core.today_str(), "nvidia": 0, "pollinations": 0, "gemini": 0}
+    fresh = {"date": core.today_str(), "nvidia": 0, "cloudflare": 0, "pollinations": 0, "gemini": 0}
     try:
         if _quota_path.exists():
             d = json.loads(_quota_path.read_text(encoding="utf-8"))
             if isinstance(d, dict) and d.get("date") == core.today_str():
-                for k in ("nvidia", "pollinations", "gemini"):
+                for k in ("nvidia", "cloudflare", "pollinations", "gemini"):
                     fresh[k] = int(d.get(k, 0) or 0)
                 return fresh
     except Exception as e:  # noqa: BLE001
@@ -169,6 +169,52 @@ def _nvidia_flux_image(prompt: str, out: pathlib.Path, seed: int = 0) -> bool:
     return False
 
 
+# Cloudflare Workers AI: (account_id, env токена) — 5 аккаунтов, у каждого 10 000 нейронов/сутки
+# бесплатно (сброс 00:00 UTC, карты нет → сверх лимита просто ошибка). FLUX.2 klein 4B ≈ 26 нейронов
+# за выходной тайл 512x512 → вертикаль 768x1344 ≈ 156 нейронов ≈ 64 кадра/сутки на аккаунт
+# (flux-2-dev ≈ 4500 нейронов за кадр — не по карману). Проверено живьём 2026-10-26.
+_CF_ACCOUNTS = (
+    ("10b6abe7232c989fbba85e8beca827d4", "CLOUDFLARE_AI_TOKEN_1"),
+    ("9df754f59e86e55ecfc25689b4a6696b", "CLOUDFLARE_AI_TOKEN_2"),
+    ("745c46e189010aa7d08ad7ed87cd7eaf", "CLOUDFLARE_AI_TOKEN_3"),
+    ("4e6004ef5ac0c399618c6b35160e8377", "CLOUDFLARE_AI_TOKEN_4"),
+    ("13d421489f30430780c5e4ee896f1045", "CLOUDFLARE_AI_TOKEN_5"),
+)
+CF_IMG_MODEL = "@cf/black-forest-labs/flux-2-klein-4b"
+
+
+def _cloudflare_flux_image(prompt: str, out: pathlib.Path, seed: int = 0) -> bool:
+    """FLUX.2 klein 4B через Cloudflare Workers AI (multipart), вертикаль 768x1344.
+    Аккаунт исчерпал суточные нейроны/сбой → cooldown → следующий аккаунт."""
+    now = time.time()
+    fields = {"prompt": prompt, "width": "768", "height": "1344", "seed": str(seed)}
+    boundary = "cf" + hashlib.sha1(prompt.encode()).hexdigest()[:16]
+    body = b"".join(f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
+                    for k, v in fields.items()) + f"--{boundary}--\r\n".encode()
+    for acc, env in _CF_ACCOUNTS:
+        key = os.environ.get(env, "").strip()
+        if not key:
+            continue
+        cid = "cf:" + _kh(key)
+        if _COOLDOWN.get(cid, 0) > now:
+            continue
+        req = urllib.request.Request(f"https://api.cloudflare.com/client/v4/accounts/{acc}/ai/run/{CF_IMG_MODEL}",
+                                     data=body, headers={"Authorization": f"Bearer {key}",
+                                                         "Content-Type": f"multipart/form-data; boundary={boundary}"})
+        try:
+            r = json.loads(urllib.request.urlopen(req, timeout=120).read())
+            b64 = (r.get("result") or {}).get("image")
+            if b64:
+                out.write_bytes(base64.b64decode(b64))
+                if out.stat().st_size > 5000 and not _too_dark(out):
+                    return True
+        except urllib.error.HTTPError as e:  # noqa
+            _cooldown_set(cid, now + (3600 if e.code in (429, 402, 403) else 600))
+        except Exception:  # noqa: BLE001
+            _cooldown_set(cid, now + 120)
+    return False
+
+
 # Модели Pollinations в порядке предпочтения по АНАТОМИИ (ресёрч 2026-07: nanobanana=Gemini
 # Nano Banana даёт лучшие руки/лица; flux — базовый фолбэк). Пробуем по очереди до первого успеха.
 _POLLI_MODELS = ("nanobanana", "flux")
@@ -204,11 +250,15 @@ def _pollinations_image(prompt: str, out: pathlib.Path, seed: int = 0) -> bool:
 
 def generate_raw(prompt: str, out: pathlib.Path, seed: int = 0) -> str | None:
     """Каскад по ГОТОВОМУ промпту (минуя prompt_for): NVIDIA FLUX (ключ, топ-качество) →
-    Pollinations FLUX (без ключа) → Gemini (мёртв на free, на случай биллинга).
+    Cloudflare FLUX.2 klein (5 аккаунтов) → Pollinations FLUX (без ключа) → Gemini (мёртв на free, на случай биллинга).
     Для обложек/кастомных сцен. Возвращает путь или None."""
     if _quota_load().get("nvidia", 0) < DAILY_LIMITS.get("nvidia", 0):
         if _nvidia_flux_image(prompt, out, seed=seed):
             _quota_bump("nvidia")
+            return str(out)
+    if _quota_load().get("cloudflare", 0) < DAILY_LIMITS.get("cloudflare", 0):
+        if _cloudflare_flux_image(prompt, out, seed=seed):
+            _quota_bump("cloudflare")
             return str(out)
     if _quota_load().get("pollinations", 0) < DAILY_LIMITS.get("pollinations", 0):
         if _pollinations_image(prompt, out, seed=seed):
