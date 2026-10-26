@@ -43,7 +43,10 @@
       "json_mode": true,
       "cooldown_sec": 3600,
       "transient_cooldown_sec": 60,
-      "free_note": "overflow: Flash-Lite (алиас latest — 2.5-flash-lite снята 2026-07), те же GEMINI_API_KEY, 1500 RPD/ключ"
+      "free_note": "overflow: Flash-Lite (алиас latest — 2.5-flash-lite снята 2026-07), те же GEMINI_API_KEY, 1500 RPD/ключ",
+      "key_envs": [
+        "GEMINI_API_KEY_LITE"
+      ]
     },
     {
       "name": "nvidia-nim",
@@ -82,12 +85,12 @@
       "name": "openrouter",
       "enabled": true,
       "base_url": "https://openrouter.ai/api/v1",
-      "model": "qwen/qwen3-next-80b-a3b-instruct:free",
+      "model": "nvidia/nemotron-3-ultra-550b-a55b:free",
       "key_env": "OPENROUTER_API_KEY",
       "json_mode": true,
       "cooldown_sec": 1800,
       "transient_cooldown_sec": 30,
-      "free_note": "#6: Qwen3-80B free, 3 ключа; free-модели часто 429 (общие) — overflow."
+      "free_note": "2026-10-26: qwen3-next-80b больше не бесплатна (404) → Nemotron 3 Ultra 550B free, проверено живьём в json_mode. Ключи: 6 аккаунтов."
     },
     {
       "name": "openrouter-gemma",
@@ -104,12 +107,79 @@
       "name": "openrouter-nemo",
       "enabled": true,
       "base_url": "https://openrouter.ai/api/v1",
-      "model": "nvidia/nemotron-3-super-120b-a12b:free",
+      "model": "nvidia/nemotron-3.5-lightning:free",
       "key_env": "OPENROUTER_API_KEY",
       "json_mode": true,
       "cooldown_sec": 1800,
       "transient_cooldown_sec": 30,
-      "free_note": "#7: вторая free-модель OpenRouter на тех же ключах — повышает hit-rate."
+      "free_note": "2026-10-26: nemotron-3-super-120b снята с free (404) → Nemotron 3.5 Lightning free, проверено живьём в json_mode."
+    },
+    {
+      "name": "cloudflare-1",
+      "enabled": true,
+      "base_url": "https://api.cloudflare.com/client/v4/accounts/10b6abe7232c989fbba85e8beca827d4/ai/v1",
+      "model": "@cf/openai/gpt-oss-120b",
+      "key_env": "CLOUDFLARE_AI_TOKEN_1",
+      "json_mode": true,
+      "cooldown_sec": 3600,
+      "transient_cooldown_sec": 30,
+      "free_note": "Cloudflare Workers AI, бесплатно 10 000 нейронов/сутки на аккаунт (без карты: сверх лимита запросы просто отклоняются). Свой аккаунт = свой base_url, поэтому слот на каждый. Добавлен и проверен живьём 2026-10-26."
+    },
+    {
+      "name": "cloudflare-2",
+      "enabled": true,
+      "base_url": "https://api.cloudflare.com/client/v4/accounts/9df754f59e86e55ecfc25689b4a6696b/ai/v1",
+      "model": "@cf/openai/gpt-oss-120b",
+      "key_env": "CLOUDFLARE_AI_TOKEN_2",
+      "json_mode": true,
+      "cooldown_sec": 3600,
+      "transient_cooldown_sec": 30,
+      "free_note": "Cloudflare Workers AI, бесплатно 10 000 нейронов/сутки на аккаунт (без карты: сверх лимита запросы просто отклоняются). Свой аккаунт = свой base_url, поэтому слот на каждый. Добавлен и проверен живьём 2026-10-26."
+    },
+    {
+      "name": "cloudflare-3",
+      "enabled": true,
+      "base_url": "https://api.cloudflare.com/client/v4/accounts/745c46e189010aa7d08ad7ed87cd7eaf/ai/v1",
+      "model": "@cf/openai/gpt-oss-120b",
+      "key_env": "CLOUDFLARE_AI_TOKEN_3",
+      "json_mode": true,
+      "cooldown_sec": 3600,
+      "transient_cooldown_sec": 30,
+      "free_note": "Cloudflare Workers AI, бесплатно 10 000 нейронов/сутки на аккаунт (без карты: сверх лимита запросы просто отклоняются). Свой аккаунт = свой base_url, поэтому слот на каждый. Добавлен и проверен живьём 2026-10-26."
+    },
+    {
+      "name": "cloudflare-4",
+      "enabled": true,
+      "base_url": "https://api.cloudflare.com/client/v4/accounts/4e6004ef5ac0c399618c6b35160e8377/ai/v1",
+      "model": "@cf/openai/gpt-oss-120b",
+      "key_env": "CLOUDFLARE_AI_TOKEN_4",
+      "json_mode": true,
+      "cooldown_sec": 3600,
+      "transient_cooldown_sec": 30,
+      "free_note": "Cloudflare Workers AI, бесплатно 10 000 нейронов/сутки на аккаунт (без карты: сверх лимита запросы просто отклоняются). Свой аккаунт = свой base_url, поэтому слот на каждый. Добавлен и проверен живьём 2026-10-26."
+    },
+    {
+      "name": "cloudflare-5",
+      "enabled": true,
+      "base_url": "https://api.cloudflare.com/client/v4/accounts/13d421489f30430780c5e4ee896f1045/ai/v1",
+      "model": "@cf/openai/gpt-oss-120b",
+      "key_env": "CLOUDFLARE_AI_TOKEN_5",
+      "json_mode": true,
+      "cooldown_sec": 3600,
+      "transient_cooldown_sec": 30,
+      "free_note": "Cloudflare Workers AI, бесплатно 10 000 нейронов/сутки на аккаунт (без карты: сверх лимита запросы просто отклоняются). Свой аккаунт = свой base_url, поэтому слот на каждый. Добавлен и проверен живьём 2026-10-26."
+    },
+    {
+      "name": "zai-glm",
+      "enabled": true,
+      "base_url": "https://api.z.ai/api/paas/v4",
+      "model": "glm-4.7-flash",
+      "key_env": "ZAI_API_KEY",
+      "json_mode": false,
+      "timeout": 120,
+      "cooldown_sec": 1800,
+      "transient_cooldown_sec": 60,
+      "free_note": "Z.ai GLM-4.7-Flash — бесплатная модель (ключи через Google-вход, 2026-10-26). Медленная (~36 с на ответ), поэтому в хвосте каскада, timeout 120."
     },
     {
       "name": "chutes",
