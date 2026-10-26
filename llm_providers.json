@@ -173,13 +173,13 @@
       "name": "zai-glm",
       "enabled": true,
       "base_url": "https://api.z.ai/api/paas/v4",
-      "model": "glm-4.7-flash",
+      "model": "glm-4.5-flash",
       "key_env": "ZAI_API_KEY",
       "json_mode": false,
       "timeout": 120,
       "cooldown_sec": 1800,
       "transient_cooldown_sec": 60,
-      "free_note": "Z.ai GLM-4.7-Flash — бесплатная модель (ключи через Google-вход, 2026-10-26). Медленная (~36 с на ответ), поэтому в хвосте каскада, timeout 120."
+      "free_note": "Z.ai GLM-4.5-Flash — бесплатная модель (ключи через Google-вход, 2026-10-26). glm-4.7-flash постоянно 429/1305 (перегрузка), 4.5-flash ответила на всех 5 ключах. Ответ бывает в ```json — script._parse это разбирает."
     },
     {
       "name": "chutes",
