@@ -1,12 +1,12 @@
 {
-  "updated": "2026-11-02T00:46:34.451699+03:00",
+  "updated": "2026-11-09T00:44:17.335792+03:00",
   "weights": {
     "ai_lifehacks": 0.635,
     "money_facts": 0.523,
     "talking_objects": 0.528,
-    "mind_facts": 0.544,
-    "history_facts": 1.783,
-    "business_stories": 1.972,
+    "mind_facts": 0.545,
+    "history_facts": 1.782,
+    "business_stories": 1.973,
     "mystic_stories": 0.593,
     "soviet_things": 1.784,
     "psy_stories": 0.637
@@ -17,7 +17,7 @@
     "talking_objects": 3,
     "mind_facts": 5,
     "history_facts": 137,
-    "business_stories": 157,
+    "business_stories": 158,
     "mystic_stories": 10,
     "soviet_things": 137,
     "psy_stories": 15
@@ -26,7 +26,7 @@
     "ai_lifehacks": 110,
     "money_facts": 70,
     "talking_objects": 71,
-    "mind_facts": 217,
+    "mind_facts": 222,
     "history_facts": 87,
     "business_stories": 74,
     "mystic_stories": 42,
