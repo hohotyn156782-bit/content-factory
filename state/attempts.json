@@ -1,14 +1,4 @@
 {
-  "2026-11-17": {
-    "text": [
-      "business_stories",
-      "mind_facts"
-    ],
-    "ig_vk": [
-      "business_stories",
-      "mind_facts"
-    ]
-  },
   "2026-11-18": {
     "text": [
       "business_stories",
@@ -61,6 +51,12 @@
   },
   "2026-11-23": {
     "ig_vk": [
+      "business_stories",
+      "mind_facts"
+    ]
+  },
+  "2026-11-24": {
+    "text": [
       "business_stories",
       "mind_facts"
     ]
